@@ -1,0 +1,5 @@
+BUILDING_SMALL = "small"
+BUILDING_MAJOR = "major"
+BUILDING_PLANET_UNIQUE = "planet_unique"
+BUILDING_SYSTEM_UNIQUE = "system_unique"
+BUILDING_EMPIRE_UNIQUE = "empire_unique"
