@@ -57,3 +57,12 @@ def planet_color(planet):
         min(255, g),
         min(255, b)
     )
+
+def planet_tooltip_data(planet, orbit):
+    return [
+        f"Orbit: {orbit}",
+        f"Colonized: {'YES' if planet.colonized else 'NO'}",
+        f"Owner: {planet.owner.name if planet.owner else 'None'}",
+        f"Population: {planet.population.size:.1f}",
+        f"Primary: {planet.primary_resource.upper()}",
+    ]

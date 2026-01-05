@@ -1,6 +1,7 @@
 # render/draw_hex.py
 import math
 import pygame
+from render.colors import RESOURCE_COLORS
 
 HEX_SIZE = 18
 
@@ -49,3 +50,25 @@ def point_in_hex(px, py, hex_obj, center_x, center_y):
         j = i
     
     return inside
+
+
+def production_hex_color(hex, planet):
+    prod = hex.production_summary(planet.population)
+
+    if not prod:
+        return (40, 40, 40)
+
+    # wybierz dominujący zasób
+    res = max(prod, key=prod.get)
+    val = prod[res]
+
+    base = RESOURCE_COLORS.get(res, (120,120,120))
+
+    # jasność zależna od produkcji
+    intensity = min(1.0, val / 3.0)
+
+    r = int(base[0] * intensity)
+    g = int(base[1] * intensity)
+    b = int(base[2] * intensity)
+
+    return (r, g, b)

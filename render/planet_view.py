@@ -71,6 +71,7 @@ def hex_color(hex, overlay):
         b = clamp(base[2] * (0.5 + scale * 0.5))
 
         return (r, g, b)
+    
 
     return (100, 100, 100)
 
@@ -110,7 +111,13 @@ def draw_planet(screen, planet, center, selected_hex, overlay_mode):
 
     for hex in planet.hex_map.hexes:
         pos = hex_to_pixel(hex.q, hex.r, center)
-        color = hex_color(hex, overlay_mode)
+        if overlay_mode == 4:
+            color = production_hex_color(hex, planet)
+        elif overlay_mode == 5:
+            color = population_hex_color(hex, planet)
+        else:
+            color = hex_color(hex, overlay_mode)
+
         draw_hex(screen, pos, color,planet, hex is selected_hex)
         draw_source_icons(screen, planet, hex, pos)
         draw_hex_buildings(screen, hex, pos)
@@ -202,10 +209,20 @@ def draw_population_panel(screen, planet):
 
     for stat, val in planet.population.stats.items():
         bar_len = int(val * 8)
-        bar = "█" * bar_len
+        bar = "." * bar_len
         txt = f"{stat[:6].upper():6} {bar}"
         screen.blit(font.render(txt, True, (200, 200, 200)), (x, y))
         y += 16
+        
+        
+    free = planet.population.free
+    used = planet.population.used
+
+    screen.blit(font.render(
+        f"POP: {planet.population.size:.2f} (free {free:.2f} / work {used:.2f})",
+        True, (220,220,220)
+    ), (x, y))
+
 
 def draw_build_menu(screen, planet, hex, items):
     font = pygame.font.SysFont(None, 20)
@@ -242,3 +259,68 @@ def draw_build_menu(screen, planet, hex, items):
             cost_y += 18
 
         y = cost_y + 6
+
+
+def hex_tooltip_data(hex, planet):
+    lines = [
+        f"HEX ({hex.q},{hex.r})",
+        f"TEMP: {hex.temperature:.2f}",
+        f"LIFE: {hex.life:.2f}",
+        ""
+    ]
+
+    if hex.buildings_small:
+        lines.append("Buildings:")
+        for b in hex.buildings_small:
+            lines.append(f"- {b.name}")
+    else:
+        lines.append("No buildings")
+
+    prod = hex.production_summary(planet.population)
+    if prod:
+        lines.append("")
+        lines.append("Production:")
+        for r, v in sorted(prod.items(), key=lambda x: -x[1]):
+            lines.append(f"{r.upper():10} +{v:.2f}")
+
+
+    return lines
+
+
+def production_hex_color(hex, planet):
+    prod = hex.production_summary(planet.population)
+
+    if not prod:
+        return (40, 40, 60)
+
+    # dominujący zasób
+    res, val = max(prod.items(), key=lambda x: x[1])
+
+    base = RESOURCE_COLORS.get(res, (120, 120, 120))
+
+    # skalowanie jasności (bez przepaleń)
+    intensity = min(1.0, val / 2.5)
+
+    r = clamp(base[0] * (0.4 + intensity * 0.6))
+    g = clamp(base[1] * (0.4 + intensity * 0.6))
+    b = clamp(base[2] * (0.4 + intensity * 0.6))
+
+    return (r, g, b)
+
+def population_hex_color(hex, planet):
+    load = 0.0
+    for b in hex.buildings_small:
+        load += b.pop_upkeep
+
+    if load <= 0:
+        return (60, 120, 60)
+
+    # relacja do wielkości populacji
+    ratio = load / max(0.1, planet.population.size)
+
+    if ratio < 0.3:
+        return (80, 160, 80)
+    elif ratio < 0.6:
+        return (200, 180, 80)
+    else:
+        return (200, 80, 80)

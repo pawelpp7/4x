@@ -6,9 +6,10 @@ class Empire:
         self.color = color
         self.galaxy = galaxy
         self.is_player = is_player
-
+        self.energy_last=100.0
         self.planets = []
         self.storage = {
+            "energy": 100.0,
             "thermal": 50,
             "cryo": 50,
             "solids": 50,

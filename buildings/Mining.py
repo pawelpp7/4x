@@ -11,7 +11,8 @@ class MiningComplex(Building):
                 "solids": 5,
                 "exotics": 3,
             },
-            pop_upkeep=0.1
+            pop_upkeep=0.1,
+            energy = -0.3
         )
         self.resource = resource
         self.efficiency = efficiency

@@ -108,7 +108,17 @@ class Galaxy:
         for empire in self.empires:
             empire.tick()
             empire.status(self)
+            energy_delta = 0.0
 
+            for planet in empire.planets:
+                energy_delta += planet.energy_delta()  # ✅ NAWIASY
+
+            empire.storage["energy"] += energy_delta
+            empire.energy_last = energy_delta
+
+            if empire.storage["energy"] < 0:
+                self.energy_crisis(empire)
+                
         # 2️⃣ Tick planet
         for entry in self.systems:
             system = entry["system"]
@@ -133,3 +143,11 @@ class Galaxy:
             }
 
             self.systems.append(node)
+            
+            
+            
+    def energy_crisis(self, empire):
+        empire.storage["energy"] = 0
+
+        for planet in empire.planets:
+            planet.population.size *= 0.98  

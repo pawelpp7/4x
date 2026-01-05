@@ -17,6 +17,8 @@ from planet.resources import calculate_resources, ALL_RESOURCES
 from buildings.constants import BUILDING_SMALL, BUILDING_PLANET_UNIQUE
 from core.rng import uniform, choice, randint
 from collections import defaultdict
+
+ENERGY_PER_FREE_POP = 0.3
 MAX_SMALL_BUILDINGS = 2
 COLONIZATION_COST = {
             "compounds": 30,
@@ -175,9 +177,6 @@ class Planet:
             self.storage[res] += amount
         self.population.size *= 1.0 + (self.population.growth * self.population.happiness)
         
-        for h in self.hex_map.hexes:
-            for b in h.buildings_small:
-                self.population.size -= b.pop_upkeep
                 
         if self.colonized and not self.owner:
             print(" BUG: colonized planet without owner", id(self))
@@ -204,51 +203,6 @@ class Planet:
             return True
         return self.building_limits[key] == 0
 
-
-
-    def build(self, hex, building):
-        if not self.can_build(hex, building):
-            return False
-
-        if building.category == BUILDING_SMALL:
-            hex.buildings_small.append(building)
-
-        else:
-            hex.building_major = building
-
-        self.buildings.append(building)
-        self.recalc_buildings()
-        return True
-
-    def add_building(self, building, hex):
-        if not self.can_build(building):
-            return False
-
-        if building.blocks_hex():
-            hex.blocked = True
-
-        self.buildings.append(building)
-
-        key = building.limit_key()
-        if key:
-            self.building_limits[key] += 1
-
-        building.apply_planet_effect(self)
-        return True
-
-
-    def colonize(self, empire, galaxy):
-        if self.colonized:
-            return False
-
-        self.colonized = True
-        self.owner = empire
-        self.colonized_turn = galaxy.turn
-
-        if self not in empire.planets:
-            empire.planets.append(self)
-
-        return True
 
         
     def can_colonize(self, empire):
@@ -287,7 +241,7 @@ class Planet:
         # blokada: tylko Population Hub na start
         self.unlock_basic_buildings()
 
-        print(f"[COLONY] Planet {id(self)} colonized by {self.owner.name}")
+        print(f"COLONY Planet {id(self)} colonized by {self.owner.name}")
 
 
     def place_planet_unique(self, building):
@@ -315,16 +269,14 @@ class Planet:
                 summary.append(f"{b.name} @ ({h.q},{h.r})")
         return summary
     
-    def build_spaceport(self, empire):
-        if self.spaceport:
-            return
 
-        sp = SpacePort()
-        sp.owner = empire       
-        self.spaceport = sp
-        self.colonized = True
-        self.owner = empire
+    def colonize(self, empire, galaxy):
+        """Stara metoda - lepiej używać build_spaceport()"""
+        if self.colonized:
+            print(f"WARN Planet {id(self)} already colonized")
+            return False
 
+        return self.build_spaceport(empire)
     def get_system(self, galaxy):
         for s in galaxy.systems:
             if self in s["system"].planets:
@@ -355,3 +307,8 @@ class Planet:
                     stats[res] = val
 
         self.population.stats = stats
+
+
+    def energy_delta(self):
+        free = self.population.free
+        return free * ENERGY_PER_FREE_POP

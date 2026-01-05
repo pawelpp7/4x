@@ -69,3 +69,31 @@ class Hex:
             self.buildings_small.append(building)
 
                 
+    def production_summary(self, population):
+        summary = {}
+        for b in self.buildings_small:
+            out = b.produce(self, population)
+            for r, v in out.items():
+                summary[r] = summary.get(r, 0) + v
+        return summary
+
+    def population_load(self):
+        load = 0.0
+        for b in self.buildings_small:
+            load += b.pop_upkeep
+        return load
+
+    def population_hex_color(hex, planet):
+        load = hex.population_load()
+
+        if load <= 0:
+            return (60, 120, 60)
+
+        ratio = min(1.0, load / max(0.1, planet.population.size))
+
+        if ratio < 0.3:
+            return (80, 160, 80)
+        elif ratio < 0.6:
+            return (200, 180, 80)
+        else:
+            return (200, 80, 80)

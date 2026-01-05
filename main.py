@@ -3,15 +3,14 @@ import pygame
 import math
 
 from galaxy.galaxy import Galaxy
-from render.draw_galaxy import draw_galaxy, pick_system
-from render.system_view import draw_system
-from render.planet_view import draw_planet, pick_hex,draw_build_menu
+from render.draw_galaxy import draw_galaxy, pick_system, system_tooltip_data
+from render.system_view import draw_system, planet_tooltip_data
+from render.planet_view import draw_planet, hex_tooltip_data, pick_hex, draw_build_menu
 from empire.empire import Empire
 from ai.simple_ai import SimpleAI
 from buildings.PopulationHub import PopulationHub
+from buildings.SpacePort import SpacePort
 from buildings.production import ResourceBuilding
-
-
 
 GALAXY_VIEW = 0
 SYSTEM_VIEW = 1
@@ -22,34 +21,46 @@ OVERLAY_TEMP = 0
 OVERLAY_HEIGHT = 1
 OVERLAY_LIFE = 2
 OVERLAY_RES = 3
+OVERLAY_PRODUCTION = 4
+OVERLAY_POPULATION = 5
+
+
 
 WIDTH, HEIGHT = 1000, 1000
 TICK_MS = 1000
 
-
 def main():
     build_menu_hex = None
     build_menu_items = []
+    planet_positions = []
+    hovered_system = None
+    hovered_planet = None
+    hovered_hex = None
+
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 18)
 
     galaxy = Galaxy(system_count=40, size=900)
-    empire = Empire("Player", (80,200,120), galaxy, is_player=True)
-    ai_empire = Empire("AI Empire", (200,70,180), galaxy)
+    empire = Empire("Player", (80, 200, 120), galaxy, is_player=True)
+    ai_empire = Empire("AI Empire", (200, 70, 180), galaxy)
 
     galaxy.empires.extend([empire, ai_empire])
 
-
-    # startowa planeta
+    # 🔨 NOWA LOGIKA - startowa planeta dla gracza
     start_system = galaxy.systems[0]["system"]
     start_planet = start_system.planets[0]
 
-    start_planet.build_spaceport(empire)
-
-
-    print("[INIT] AI Empire got start planet")
+    spaceport = SpacePort()
+    spaceport.owner = empire
+    start_hex = start_planet.hex_map.hexes[0]
+    
+    success, msg = spaceport.build(start_planet, start_hex)
+    if success:
+        print(f"INIT Player starting planet: {msg}")
+    else:
+        print(f"INIT Failed to initialize starting planet: {msg}")
 
     prod = galaxy.produce()
     print("=== GALACTIC PRODUCTION (1 TICK) ===")
@@ -95,6 +106,11 @@ def main():
                         overlay_mode = OVERLAY_LIFE
                     elif event.key == pygame.K_4:
                         overlay_mode = OVERLAY_RES
+                    elif event.key == pygame.K_5:
+                        overlay_mode = OVERLAY_PRODUCTION
+                    elif event.key == pygame.K_6:
+                        overlay_mode = OVERLAY_POPULATION
+
 
                     # 🔨 OTWARCIE MENU BUDOWY
                     elif event.key == pygame.K_b and selected_hex:
@@ -106,13 +122,19 @@ def main():
                 elif current_view == BUILD_MENU:
                     idx = event.key - pygame.K_1
                     if 0 <= idx < len(build_menu_items):
-                        b = build_menu_items[idx]
-                        if b.can_afford(current_planet):
-                            b.pay_cost(current_planet)
-                            b.owner = current_planet.owner 
-                            build_menu_hex.add_building(b)
-                            b.apply_planet_effect(current_planet)
+                        building = build_menu_items[idx]
+                        building.owner = empire
+                        
+                        # 🔨 NOWA LOGIKA - używamy build()
+                        success, msg = building.build(current_planet, build_menu_hex)
+                        
+                        if success:
+                            print(f"PLAYER {msg}")
+                        else:
+                            print(f"PLAYER Build failed: {msg}")
+                        
                         current_view = PLANET_VIEW
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
 
                 if current_view == GALAXY_VIEW:
@@ -122,18 +144,20 @@ def main():
                         current_view = SYSTEM_VIEW
 
                 elif current_view == SYSTEM_VIEW:
-                    mx, my = pygame.mouse.get_pos() 
-                    cx, cy = WIDTH // 2, HEIGHT // 2 
-                    orbit_step = 45 
-                    for i, planet in enumerate(current_system.planets): 
-                        radius = orbit_step * (i + 1) 
-                        angle = i * 2 * math.pi / len(current_system.planets) 
-                        px = cx + math.cos(angle) * radius 
-                        py = cy + math.sin(angle) * radius 
-                        if (mx - px) ** 2 + (my - py) ** 2 < 8 ** 2: 
-                            current_planet = planet 
-                            current_view = PLANET_VIEW 
+                    mx, my = pygame.mouse.get_pos()
+                    cx, cy = WIDTH // 2, HEIGHT // 2
+                    orbit_step = 45
+                    for i, planet in enumerate(current_system.planets):
+                        radius = orbit_step * (i + 1)
+                        angle = i * 2 * math.pi / len(current_system.planets)
+                        px = cx + math.cos(angle) * radius
+                        py = cy + math.sin(angle) * radius
+                        planet_positions.append((planet, (px, py), i))
+                        if (mx - px) ** 2 + (my - py) ** 2 < 8 ** 2:
+                            current_planet = planet
+                            current_view = PLANET_VIEW
                             break
+
 
                 elif current_view == PLANET_VIEW:
                     selected_hex = pick_hex(
@@ -143,22 +167,41 @@ def main():
                     )
 
 
-
         # ================= TICK =================
         now = pygame.time.get_ticks()
         if now - last_tick >= TICK_MS:
             last_tick = now
-
-            galaxy.tick()   # 🔴 TU DZIEJE SIĘ CAŁA SYMULACJA
+            galaxy.tick()
 
         # ================= RENDER =================
         screen.fill((0, 0, 0))
-
+        screen.blit(font.render(
+            f"ENERGY: {empire.storage['energy']:.1f} ({empire.energy_last:+.1f}/t)",
+            True, (120,220,120) if empire.energy_last >= 0 else (220,120,120)
+        ), (10, 10))
         if current_view == GALAXY_VIEW:
             draw_galaxy(screen, galaxy)
+            
+            hovered = pick_system(galaxy, pygame.mouse.get_pos())
+            if hovered:
+                lines = system_tooltip_data(hovered)
+                mx, my = pygame.mouse.get_pos()
+                y = my + 10
+                for l in lines:
+                    img = font.render(l, True, (220,220,220))
+                    screen.blit(img, (mx + 10, y))
+                    y += 16
 
         elif current_view == SYSTEM_VIEW:
             draw_system(screen, current_system, (WIDTH // 2, HEIGHT // 2))
+            mx, my = pygame.mouse.get_pos()
+            for planet, (px,py), orbit in planet_positions:
+                if (mx-px)**2 + (my-py)**2 < 8**2:
+                    lines = planet_tooltip_data(planet, orbit)
+                    y = my + 10
+                    for l in lines:
+                        screen.blit(font.render(l, True, (220,220,220)), (mx+10, y))
+                        y += 16
 
         elif current_view == PLANET_VIEW:
             draw_planet(
@@ -168,6 +211,17 @@ def main():
                 selected_hex,
                 overlay_mode
             )
+            hover_hex = pick_hex(current_planet, pygame.mouse.get_pos(), (WIDTH//2, HEIGHT//2))
+            if hover_hex:
+                lines = hex_tooltip_data(hover_hex, current_planet)
+                mx, my = pygame.mouse.get_pos()
+                y = my + 10
+                for l in lines:
+                    screen.blit(font.render(l, True, (230,230,230)), (mx+10, y))
+                    y += 16
+
+
+
 
             # === STORAGE ===
             y = 150
@@ -179,24 +233,19 @@ def main():
                 y += 18
 
             # === OVERLAY LABELS ===
-            labels = ["1 TEMP", "2 HEIGHT", "3 LIFE", "4 RES"]
+            labels = ["1 TEMP", "2 HEIGHT", "3 LIFE", "4 RES", "5 PROD", "6 POP"]
             for i, txt in enumerate(labels):
                 img = font.render(txt, True, (180, 180, 180))
                 screen.blit(img, (10, HEIGHT - 20 * (len(labels) - i)))
-            
-            
+
             # === BUILD KEYS ===
             build_labels = [
-                "P – Pop Hub",
-                "B – Biomass",
-                "F – Fluidics",
-                "T – Thermal",
+                "B – Build Menu",
             ]
 
             for i, txt in enumerate(build_labels):
                 img = font.render(txt, True, (200, 200, 200))
                 screen.blit(img, (WIDTH - 160, HEIGHT - 20 * (len(build_labels) - i)))
-
 
             # === HEX INFO ===
             if selected_hex:
@@ -209,6 +258,7 @@ def main():
                 for i, text in enumerate(lines):
                     img = font.render(text, True, (200, 200, 200))
                     screen.blit(img, (10, 10 + i * 18))
+
         elif current_view == BUILD_MENU:
             draw_planet(
                 screen,
@@ -233,25 +283,27 @@ def main():
 from buildings.registry import BUILDINGS
 
 def get_available_buildings(planet, hex):
+    """Zwraca listę budynków możliwych do zbudowania na tym hexie"""
     items = []
 
     for name, factory in BUILDINGS.items():
-        b = factory()   # 🔥 tu jest fix
+        building = factory()
 
-        if not hex.can_build(b,planet):
+        # Sprawdź czy można zbudować na hexie
+        if not hex.can_build(building, planet):
             continue
 
-        if not b.can_afford(planet):
+        # Sprawdź czy stać
+        if not building.can_afford(planet):
             continue
 
         # SpacePort tylko dla nieskolonizowanych
-        if b.name == "Space Port" and planet.colonized:
+        if building.name == "Space Port" and planet.colonized:
             continue
 
-        items.append(b)
+        items.append(building)
 
     return items
-
 
 if __name__ == "__main__":
     main()

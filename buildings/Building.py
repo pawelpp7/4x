@@ -1,28 +1,32 @@
+# buildings/Building.py - dodaj metodę build()
+
 class Building:
     def __init__(
         self,
         name,
         category,
         cost=None,
-        pop_cost=0.0,
-        pop_required=0.0,
-        pop_upkeep=0.0,
+        pop_cost=1.0,
+        pop_required=1.0,
+        pop_upkeep=1.0,
+        energy = 1.0,
+
         owner=None
     ):
         self.name = name
         self.category = category
         self.cost = cost or {}
-
         self.pop_cost = pop_cost        
         self.pop_required = pop_required
-        self.owner=owner
-        self.pop_upkeep = pop_upkeep    # ciągłe
+        self.owner = owner
+        self.pop_upkeep = pop_upkeep
 
     def can_afford(self, planet):
+        """Sprawdza czy stać planetę na budowę"""
         if planet.population.size < self.pop_required:
-            
             return False
-        if  planet.population.can_support(self.pop_upkeep):
+        
+        if not planet.population.can_support(self.pop_upkeep):
             return False
 
         for r, v in self.cost.items():
@@ -32,11 +36,39 @@ class Building:
         return True
 
     def pay_cost(self, planet):
+        """Płaci koszt budowy"""
         for r, v in self.cost.items():
             planet.storage[r] -= v
 
         planet.population.size -= self.pop_cost
         planet.population.add_load(self.pop_upkeep)
+
+    def build(self, planet, hex):
+        """
+        🔨 GŁÓWNA METODA BUDOWY
+        Kompletny proces: sprawdzenie -> płatność -> umieszczenie -> efekt
+        """
+        # 1️⃣ Sprawdzenie czy można zbudować
+        if not hex.can_build(self, planet):
+            return False, "Cannot build on this hex"
+        
+        if not self.can_afford(planet):
+            return False, f"Cannot afford {self.name}"
+        
+        # 2️⃣ Płatność
+        self.pay_cost(planet)
+        
+        # 3️⃣ Przypisanie właściciela (jeśli nie ma)
+        if not self.owner:
+            return False, "Building has no owner"
+
+        # 4️⃣ Umieszczenie na hexie
+        hex.add_building(self)
+        
+        # 5️⃣ Zastosowanie efektu planetarnego
+        self.apply_planet_effect(planet)
+        
+        return True, f"{self.name} built successfully"
 
     def produce(self, hex, population):
         return {}
@@ -45,7 +77,8 @@ class Building:
         return False
 
     def apply_planet_effect(self, planet):
+        """Efekt budynku na planetę (override w podklasach)"""
         pass
 
     def limit_key(self):
-        return None 
+        return None

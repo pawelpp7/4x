@@ -55,3 +55,18 @@ def system_color(system):
 
     owner = owners.pop()
     return owner.color
+
+def system_tooltip_data(system):
+    owners = {p.owner for p in system.planets if p.colonized and p.owner}
+    owner_name = "None"
+    if len(owners) == 1:
+        owner_name = list(owners)[0].name
+    elif len(owners) > 1:
+        owner_name = "Multiple"
+
+    return [
+        f"Star: {system.star.type}",
+        f"Planets: {len(system.planets)}",
+        f"Colonized: {sum(1 for p in system.planets if p.colonized)}",
+        f"Owner: {owner_name}",
+    ]
