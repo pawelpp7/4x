@@ -6,7 +6,7 @@ SYSTEM_RADIUS = 6
 
 LINK_COLOR = (80, 80, 120)
 
-def draw_galaxy(screen, galaxy):
+def draw_galaxy(screen, galaxy,offset,area):
     screen.fill(BACKGROUND)
 
     # połączenia
@@ -15,8 +15,8 @@ def draw_galaxy(screen, galaxy):
             pygame.draw.line(
                 screen,
                 LINK_COLOR,
-                (int(s["x"]), int(s["y"])),
-                (int(t["x"]), int(t["y"])),
+                (int(s["x"])+offset[0], int(s["y"])),
+                (int(t["x"])+offset[0], int(t["y"])),
                 1
             )
 
@@ -28,7 +28,7 @@ def draw_galaxy(screen, galaxy):
         system = s["system"]
         color = system_color(system)
 
-        pygame.draw.circle(screen, color, (x, y), SYSTEM_RADIUS)
+        pygame.draw.circle(screen, color, (x+offset[0], y), SYSTEM_RADIUS)
 
 
 
@@ -70,3 +70,5 @@ def system_tooltip_data(system):
         f"Colonized: {sum(1 for p in system.planets if p.colonized)}",
         f"Owner: {owner_name}",
     ]
+
+

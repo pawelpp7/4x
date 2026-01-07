@@ -11,8 +11,7 @@ class Population:
     def __init__(self, size=7.0):
         self.size = size
         self.used = 0.0
-        self.used = 0.0
-        self.growth=0.1
+        self.growth=0.01
         self.happiness=1.0
 
         self.stats = {
@@ -21,7 +20,9 @@ class Population:
             "fluidics": 0.0,
             "solids": 0.0,
             "biomass": 0.0,
+            "exotics": 0.0,
         }
+
     @property
     def free(self):
         return max(0.0, self.size - self.used)

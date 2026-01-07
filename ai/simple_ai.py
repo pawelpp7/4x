@@ -7,59 +7,56 @@ from buildings.Mining import MiningComplex
 class SimpleAI:
     def __init__(self, empire, galaxy):
         self.empire = empire
-        self.cooldown = 0
         self.galaxy = galaxy
+        self.cooldown = 0
 
     def tick(self):
-        self.cooldown -= 10
+        self.cooldown -= 1
         if self.cooldown > 0:
             return
-        self.cooldown = 1
+        self.cooldown = 10
 
         planet = self.pick_planet()
         if not planet:
             return
 
-        # 🔹 KOLONIZACJA - buduj SpacePort
+        # === KOLONIZACJA ===
         if not planet.colonized:
-            print(f"AI]Colonizing planet {id(planet)}")
-            
             spaceport = SpacePort()
             spaceport.owner = self.empire
-            
-            free_hex = next((h for h in planet.hex_map.hexes if not h.is_blocked()), None)
+
+            free_hex = next(
+                (h for h in planet.hex_map.hexes if not h.is_blocked()),
+                None
+            )
             if not free_hex:
-                print("AI No free hex for SpacePort")
                 return
-            
-            # 🔨 NOWA LOGIKA - używamy build()
-            success, msg = spaceport.build(planet, free_hex)
+
+            source = self.pick_source_planet()
+            if not source:
+                return
+
+            success, msg = spaceport.build(planet, free_hex, source)
+
             if success:
-                print(f"AI {msg} - Planet colonized by {self.empire.name}")
-            else:
-                print(f"AI Failed to build SpacePort: {msg}")
+                print(f"[AI] {msg}")
             return
 
-        # 🔹 ROZWÓJ - buduj inne budynki
+        # === ROZWÓJ ===
         hex = self.pick_hex(planet)
         if not hex:
-            print("AI No valid hex")
             return
 
         building = self.pick_building(planet, hex)
         if not building:
-            print("AI No building choice")
             return
 
-        # Ustaw właściciela
         building.owner = self.empire
-
-        # 🔨 NOWA LOGIKA - używamy build()
         success, msg = building.build(planet, hex)
+
         if success:
-            print(f"AI {msg} on hex ({hex.q},{hex.r}) resources={hex.resources}")
-        else:
-            print(f"AI Build failed: {msg}")
+            print(f"[AI] {msg}")
+
 
     def pick_planet(self):
         if self.empire.planets:
@@ -112,4 +109,10 @@ class SimpleAI:
                 if factory:
                     return factory()
 
+        return None
+    
+    def pick_source_planet(self):
+        for p in self.empire.planets:
+            if p.colonized and p.population.size >= 1.0:
+                return p
         return None

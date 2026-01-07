@@ -30,6 +30,7 @@ def draw_system(screen, system, center):
 
 
 
+
 def planet_status_color(planet):
     if getattr(planet, "colonization_state", None) == "colonizing":
         return (240, 220, 120)  # żółta
@@ -66,3 +67,5 @@ def planet_tooltip_data(planet, orbit):
         f"Population: {planet.population.size:.1f}",
         f"Primary: {planet.primary_resource.upper()}",
     ]
+
+

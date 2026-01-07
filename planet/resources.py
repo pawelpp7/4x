@@ -25,6 +25,15 @@ ALL_RESOURCES = [
     "exotics",
 ]
 
+RESOURCE_EXTREMES = {
+    "thermal":  "temperature",
+    "cryo":     "temperature",
+    "fluidics": "erosion",
+    "solids":   "height",
+    "biomass":  "life",
+    "exotics":  "toxic",
+}
+
 RESOURCE_THRESHOLDS = {
     "temperature": 0.10,
     "height": 0.15,

@@ -324,3 +324,54 @@ def population_hex_color(hex, planet):
         return (200, 180, 80)
     else:
         return (200, 80, 80)
+
+
+def draw_hex_panel(screen, hex, planet, font, mouse_pos):
+    x = 20
+    y = 20
+    w = 260
+    h = 200
+
+    pygame.draw.rect(screen, (25, 30, 40), (x, y, w, h))
+    pygame.draw.rect(screen, (90, 100, 130), (x, y, w, h), 2)
+
+    lines = [
+        f"HEX ({hex.q}, {hex.r})",
+        f"TEMP: {hex.temperature:.2f}",
+        f"HEIGHT: {hex.height:.2f}",
+        f"LIFE: {hex.life:.2f}",
+        "",
+        "RESOURCES:"
+    ]
+
+    for r, v in hex.resources.items():
+        lines.append(f"{r}: {v:+.1f}")
+
+    ty = y + 10
+    for l in lines:
+        screen.blit(font.render(l, True, (220, 220, 220)), (x + 10, ty))
+        ty += 18
+
+    # === BUILD BUTTON ===
+    btn_x = x + 40
+    btn_y = y + h - 40
+    btn_w = 180
+    btn_h = 26
+
+    mx, my = mouse_pos
+    hovered = btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h
+
+    color = (120, 160, 220) if hovered else (80, 120, 180)
+    pygame.draw.rect(screen, color, (btn_x, btn_y, btn_w, btn_h))
+    pygame.draw.rect(screen, (200, 200, 220), (btn_x, btn_y, btn_w, btn_h), 1)
+
+    txt = font.render("BUILD", True, (20, 20, 30))
+    screen.blit(
+        txt,
+        (btn_x + btn_w // 2 - txt.get_width() // 2,
+         btn_y + 4)
+    )
+
+    return hovered, (btn_x, btn_y, btn_w, btn_h)
+
+

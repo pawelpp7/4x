@@ -1,5 +1,5 @@
 # planet/hex.py
-from buildings.constants import BUILDING_MAJOR
+from buildings.constants import BUILDING_MAJOR, BUILDING_SMALL
 MAX_SMALL_BUILDINGS = 2
 
 class Hex:
@@ -57,10 +57,10 @@ class Hex:
         if planet and not planet.colonized:
             return building.name == "Space Port"
 
-        if building.category == BUILDING_MAJOR:
+        if building.category != BUILDING_SMALL:
             return self.building_major is None
 
-        return len(self.buildings_small) < self.MAX_SMALL_BUILDINGS
+        return len(self.buildings_small) < max(planet.hex_cap,5)
 
     def add_building(self, building):
         if building.category == BUILDING_MAJOR:
@@ -70,12 +70,17 @@ class Hex:
 
                 
     def production_summary(self, population):
-        summary = {}
+        prod = {}
+
         for b in self.buildings_small:
-            out = b.produce(self, population)
-            for r, v in out.items():
-                summary[r] = summary.get(r, 0) + v
-        return summary
+            base = b.produce(self)
+
+            for res, val in base.items():
+                bonus = population.bonus(res)
+                prod[res] = prod.get(res, 0.0) + val * bonus
+
+        return prod
+
 
     def population_load(self):
         load = 0.0

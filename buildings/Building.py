@@ -8,7 +8,7 @@ class Building:
         cost=None,
         pop_cost=1.0,
         pop_required=1.0,
-        pop_upkeep=1.0,
+        pop_upkeep=0.01,
         energy = 1.0,
 
         owner=None
@@ -19,15 +19,14 @@ class Building:
         self.pop_cost = pop_cost        
         self.pop_required = pop_required
         self.owner = owner
+        self.energy = energy
         self.pop_upkeep = pop_upkeep
 
     def can_afford(self, planet):
         """Sprawdza czy stać planetę na budowę"""
-        if planet.population.size < self.pop_required:
+        if planet.population.size < max(self.pop_required, self.pop_cost):
             return False
         
-        if not planet.population.can_support(self.pop_upkeep):
-            return False
 
         for r, v in self.cost.items():
             if planet.storage.get(r, 0) < v:
@@ -41,7 +40,6 @@ class Building:
             planet.storage[r] -= v
 
         planet.population.size -= self.pop_cost
-        planet.population.add_load(self.pop_upkeep)
 
     def build(self, planet, hex):
         """
