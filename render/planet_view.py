@@ -20,12 +20,12 @@ BUILDING_SYMBOLS = {
 }
 
 RESOURCE_COLORS = {
-    "thermal":   (255, 100, 60),   # ogień
-    "cryo":      (80, 160, 255),   # lód
-    "solids":    (160, 160, 160),  # minerały
-    "fluidics":  (80, 120, 255),   # płyny
-    "biomass":   (80, 200, 120),   # bio
-    "compounds": (180, 120, 200),  # chemia
+    "energy":   (255, 100, 60),   # ogień
+    "gases":      (80, 160, 255),   # lód
+    "minerals":    (160, 160, 160),  # minerały
+    "water":  (80, 120, 255),   # płyny
+    "organics":   (80, 200, 120),   # bio
+    "rare_elements": (180, 120, 200),  # chemia
 }
 
 

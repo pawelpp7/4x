@@ -29,6 +29,8 @@ class Building:
         
 
         for r, v in self.cost.items():
+            print(r)
+            print(v)
             if planet.storage.get(r, 0) < v:
                 return False
 

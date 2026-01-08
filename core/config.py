@@ -19,46 +19,85 @@ BUILDING_MAJOR = "major"
 BUILDING_PLANET_UNIQUE = "planet_unique"
 
 
+# ============================================
+# TIER 1: BASIC RESOURCES (Mining/Extraction)
+# ============================================
 BASIC_RESOURCES = [
-    "thermal",
-    "cryo",
-    "solids",
-    "fluidics",
-    "biomass",
-    "exotics",
+    "energy",         # was: thermal - heat, power
+    "water",          # was: fluidics - H2O, liquids
+    "minerals",       # was: solids - metals, ores, rocks
+    "organics",       # was: biomass - biological matter
+    "gases",          # was: cryo - atmospheric gases
+    "rare_elements",  # was: exotics - rare materials, anomalies
 ]
 
+# ============================================
+# TIER 2: REFINED RESOURCES (Refineries)
+# ============================================
 ADVANCED_RESOURCES = [
-    "compounds",
-    "alloys",
-    "polymers",
-    "biochips",
-    "coolants",
-    "nanomaterials",
+    "alloys",         # minerals + energy → construction
+    "chemicals",      # gases + water + energy → industry
+    "biotech",        # organics + water → medicine, food
+    "plastics",       # organics + chemicals → components
+    "electronics",    # minerals + rare_elements → computers
+    "fuel",           # organics + chemicals + gases → power
 ]
+
+# ============================================
+# TIER 3: STRATEGIC RESOURCES (6 Pillars)
+# ============================================
+# These connect to planet sources:
+# Temperature → Authority (control, order)
+# Height → Faith (mountains = temples, connection to divine)
+# Life → Culture (diversity breeds art)
+# Cold → Science (calm, calculated research)
+# Erosion → Arcane (chaos, reality tears)
+# Toxic → Military (harsh conditions breed warriors)
+
+STRATEGIC_RESOURCES = [
+    "authority",  # TemperatureSource - control, government
+    "faith",      # HeightSource - religion, spirituality
+    "culture",    # LifeSource - art, influence
+    "science",    # ColdSource - research, technology
+    "arcane",     # ErosionSource - magic, chaos
+    "military",   # ToxicSource - warfare, defense
+]
+
+
+# Mapowanie źródeł planet → strategiczne zasoby
+SOURCE_TO_STRATEGIC = {
+    "temperature": "authority",
+    "height": "faith",
+    "life": "culture",
+    "cold": "science",
+    "erosion": "arcane",
+    "toxic": "military",
+}
 
 
 ENVIRONMENT_WEIGHTS = {
-    "compounds": {
+    "alloys": {
+        "temperature": 0.3,  # heat for smelting
+        "height": 0.1        # pressure
+    },
+    "chemicals": {
         "temperature": 0.2,
         "toxic": 0.3
     },
-    "alloys": {
-        "height": 0.3,
-        "temperature": 0.1
+    "biotech": {
+        "life": 0.5,
+        "temperature": -0.2  # stable temps better
     },
-    "polymers": {
+    "plastics": {
         "life": 0.3,
-        "temperature": -0.2
+        "temperature": 0.2
     },
-    "biochips": {
-        "life": 0.5
+    "electronics": {
+        "height": 0.2,       # rare minerals in mountains
+        "toxic": -0.3        # clean environment needed
     },
-    "coolants": {
-        "cold": 0.4
-    },
-    "nanomaterials": {
-        "height": 0.4,
-        "toxic": 0.2
+    "fuel": {
+        "life": 0.4,         # organic matter
+        "height": 0.2        # pressure
     }
 }

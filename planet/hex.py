@@ -20,7 +20,10 @@ class Hex:
         self.occupied = False                # np. UI / debug
 
     def is_blocked(self):
-        return self.building_major is not None
+        return (
+            self.building_major is not None
+            and self.building_major.name != "Empire SpacePort"
+        )
 
     def apply_parameter(self, param, value):
         if param == "temperature":
@@ -49,7 +52,8 @@ class Hex:
 
         return prod
     def can_build(self, building, planet=None):
-
+        if building.name == "Empire SpacePort":
+            return True
 
         if planet and not planet.can_build(building):
             return False

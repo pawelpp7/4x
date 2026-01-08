@@ -1,5 +1,6 @@
 from buildings.Building import Building
 from core.config import BUILDING_MAJOR, BASIC_RESOURCES
+from empire.buffs import population_resource_bonus
 from planet.resources import RESOURCE_EXTREMES
 
 REFINERY_EFFICIENCY = 0.5
@@ -7,70 +8,55 @@ REFINERY_EFFICIENCY = 0.5
 from core.config import BASIC_RESOURCES
 from core.config import ENVIRONMENT_WEIGHTS
 
-
 class Refinery(Building):
-    BASE_THROUGHPUT = 2.0
-    BASE_EFFICIENCY = 0.5
     workers_required = 0.8
     energy_cost = 0.6
 
-    def __init__(self, resource_in, resource_out):
-        name = f"{resource_in.capitalize()} Refinery"
-        super().__init__(name, BUILDING_MAJOR, cost={resource_in: 5})
-        self.resource_in = resource_in
-        self.resource_out = resource_out
-        self.mode_cooldown = 0  # tick po zmianie trybu
+    def __init__(self, name, inputs, output, extreme_bonus_type=None):
+        """
+        inputs: dict[str, float]
+        output: (resource: str, amount: float)
+        extreme_bonus_type: str | None
+        """
+        super().__init__(name, BUILDING_MAJOR, cost=inputs)
 
-    # =========================
-    # TRYB PRACY
-    # =========================
-    def set_mode(self, resource):
-        if resource not in BASIC_RESOURCES:
-            return False
-
-        self.input_resource = resource
-        self.cost = {resource: 5}
-        self.mode_cooldown = 1
-        return True
+        self.inputs = inputs
+        self.operational_cost = inputs
+        self.output_resource, self.base_output = output
+        self.extreme_bonus_type = extreme_bonus_type
 
     # =========================
     # PRODUKCJA
     # =========================
     def produce(self, hex, population):
-        planet = hex.planet
+        delta = {}
 
-        base_input = 1.0
-        base_output = 0.6
+        total_work_bonus = 1.0
 
-        # 1️⃣ ekstremum właściwe dla surowca
-        stat = RESOURCE_EXTREMES.get(self.resource_in)
-        extreme = planet.extreme_level(stat) if stat else 0.0
+        # 1️⃣ INPUTY – każdy z bonusem populacji
+        for res, base_amount in self.inputs.items():
+            pop_bonus = population_resource_bonus(population, res)
 
-        # 2️⃣ globalna niestabilność planety
-        instability = planet.instability()
+            # populacja = wydajniejsza, ALE też więcej zużywa
+            input_amount = base_amount * pop_bonus
 
-        # 3️⃣ populacja reaguje SILNIEJ niż w kopalniach
-        pop_bonus = population.bonus(self.resource_in)
+            delta[res] = -input_amount
 
-        # 4️⃣ koszt wejściowy rośnie gwałtownie
-        input_mult = 1.0 + extreme * 1.5 + instability * 0.8
+            # wkład pracy do outputu
+            total_work_bonus *= pop_bonus
 
-        # 5️⃣ output lekko maleje
-        output_mult = max(0.3, 1.0 - extreme * 0.6)
+        # 2️⃣ BONUS OD EKSTREMUM HEXA
+        if self.extreme_bonus_type:
+            extreme = getattr(hex, self.extreme_bonus_type, 0.0)
+            total_work_bonus *= (1.0 + extreme * 0.5)
 
-        # 6️⃣ realne wartości
-        input_amount = base_input * input_mult
-        output_amount = base_output * output_mult * pop_bonus
+        # 3️⃣ OUTPUT
+        output_amount = self.base_output * total_work_bonus
+        delta[self.output_resource] = output_amount
 
-        # 7️⃣ brak surowców → brak produkcji
-        if planet.storage.get(self.resource_in, 0.0) < input_amount:
-            return {}
+        return delta
 
-        planet.storage[self.resource_in] -= input_amount
 
-        return {
-            self.resource_out: output_amount
-        }
 
     # =========================
     # ENVIRONMENT
@@ -80,8 +66,7 @@ class Refinery(Building):
         factor = 1.0
 
         for attr, weight in weights.items():
-            val = getattr(hex, attr)
-            factor += val * weight
+            factor += getattr(hex, attr, 0.0) * weight
 
         return max(0.3, min(1.5, factor))
 
@@ -89,6 +74,141 @@ class Refinery(Building):
     # UI
     # =========================
     def description(self):
-        if self.input_resource:
-            return f"{self.input_resource} → {self.output_resource}"
-        return "No mode selected"
+        ins = ", ".join(f"{k}:{v}" for k, v in self.inputs.items())
+        return f"{ins} → {self.output_resource}"
+
+class Smelter(Refinery):
+    """
+    Przetapia minerały w stopy metali
+    Bonus: extreme temperature (wysoka temp = lepsze topienie)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Smelter",
+            inputs={"minerals": 2.0, "energy": 1.0},
+            output=("alloys", 1.5),
+            extreme_bonus_type="temperature"
+        )
+
+
+# ============================================
+# CHEMICAL PLANT - Zakład chemiczny
+# ============================================
+class ChemicalPlant(Refinery):
+    """
+    Przetwarza gazy i wodę w chemikalia
+    Bonus: extreme height (wysokie ciśnienie = lepsze reakcje)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Chemical Plant",
+            inputs={"gases": 1.5, "water": 1.0, "energy": 0.5},
+            output=("chemicals", 2.0),
+            extreme_bonus_type="height"
+        )
+
+
+# ============================================
+# BIOREACTOR - Bioreaktor
+# ============================================
+class Bioreactor(Refinery):
+    """
+    Przetwarza organikę w biotechnologię
+    Bonus: extreme life (różnorodne życie = lepsze biotech)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Bioreactor",
+            inputs={"organics": 2.0, "water": 1.0},
+            output=("biotech", 1.2),
+            extreme_bonus_type="life"
+        )
+
+
+# ============================================
+# POLYMER FACTORY - Fabryka tworzyw
+# ============================================
+class PolymerFactory(Refinery):
+    """
+    Polimeryzuje organikę i chemikalia w tworzywa
+    Bonus: erosion (chaos procesów = ciekawsze polimery)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Polymer Factory",
+            inputs={"organics": 1.5, "chemicals": 1.0},
+            output=("plastics", 2.0),
+            extreme_bonus_type="erosion"  # erosion = chaos
+        )
+
+
+# ============================================
+# ELECTRONICS FAB - Fabryka elektroniki
+# ============================================
+class ElectronicsFab(Refinery):
+    """
+    Wytwarza elektronikę z minerałów i rzadkich elementów
+    Bonus: cold (stabilne, niskie temperatury dla półprzewodników)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Electronics Fab",
+            inputs={"minerals": 1.0, "rare_elements": 0.5, "energy": 0.5},
+            output=("electronics", 0.8),
+            extreme_bonus_type="cold"  # cold = stable temps
+        )
+    
+    def calculate_bonus(self, planet, population):
+        """
+        Override: Electronics potrzebuje STABILNYCH warunków
+        Wysoka temperatura/toxic = KARA (clean room needed)
+        Niskie temp (cold) = BONUS
+        """
+        bonus = 1.0
+        
+        # Bonus za zimno (stabilność)
+        cold_extreme = planet.extreme_level("cold") if hasattr(planet, 'extreme_level') else 0
+        cold_bonus = 1.0 + cold_extreme * 0.6
+        bonus *= cold_bonus
+        
+        # KARA za toxic (brudne środowisko)
+        toxic_sources = [s for s in planet.sources if getattr(s, 'icon', '') == 'toxic']
+        if toxic_sources:
+            toxic_penalty = 0.7  # -30% output
+            bonus *= toxic_penalty
+        
+        # Populacja
+        pop_bonus = population.bonus("minerals")
+        bonus *= pop_bonus
+        
+        return bonus
+
+
+# ============================================
+# FUEL REFINERY - Rafineria paliw
+# ============================================
+class FuelRefinery(Refinery):
+    """
+    Rafinuje paliwa z organiki, chemikaliów i gazów
+    Bonus: toxic (trudne warunki = lepsze synteza wysokoenergetyczna)
+    """
+    def __init__(self):
+        super().__init__(
+            name="Fuel Refinery",
+            inputs={"organics": 1.0, "chemicals": 0.5, "gases": 0.5},
+            output=("fuel", 1.5),
+            extreme_bonus_type="toxic"
+        )
+
+
+# ============================================
+# Export all
+# ============================================
+__all__ = [
+    'Smelter',
+    'ChemicalPlant',
+    'Bioreactor',
+    'PolymerFactory',
+    'ElectronicsFab',
+    'FuelRefinery',
+]

@@ -5,18 +5,17 @@ from empire.buffs import population_resource_bonus
 class MiningComplex(Building):
     def __init__(self, resource, efficiency=1.0):
         super().__init__(
-            name=f"{resource} extractor",
+            name=f"{resource.capitalize()} Extractor",
             category=BUILDING_SMALL,
             cost={
-                "solids": 5,
-                "exotics": 3,
+                "minerals": 5,  # was: solids
+                "rare_elements": 3,  # was: exotics
             },
             pop_upkeep=0.1,
-            energy = -0.3
+            energy=-0.3
         )
         self.resource = resource
         self.efficiency = efficiency
-
 
     def produce(self, hex, population):
         if self.resource not in hex.resources:
@@ -28,4 +27,7 @@ class MiningComplex(Building):
         return {
             self.resource: base * self.efficiency * pop_bonus
         }
-        
+
+
+# Export
+__all__ = ['MiningComplex']

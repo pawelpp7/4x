@@ -42,7 +42,7 @@ def main():
     table_clicks = []
     build_buttons = []
     header_clicks = []
-    sort_key = "thermal"
+    sort_key = "energy"
     
     
 
@@ -70,14 +70,13 @@ def main():
     # 🔨 NOWA LOGIKA - startowa planeta dla gracza
     start_system = galaxy.systems[0]["system"]
     start_planet = start_system.planets[0]
-    esp = EmpireSpacePort()
-    start_hex = next(
-        (
-            h for h in start_planet.hex_map.hexes
-            if not h.is_blocked() and h.can_build(esp)
-        ),
-        None
-    )
+    
+    start_hex = min(
+    start_planet.hex_map.hexes,
+    key=lambda h: abs(h.q) + abs(h.r)
+)
+ 
+    
 
     if start_hex is None:
         raise RuntimeError("No valid hex for EmpireSpacePort on starting planet")
@@ -107,7 +106,8 @@ def main():
 
     last_tick = pygame.time.get_ticks()
     running = True
-    paused = False
+    paused = True
+
 
     while running:
         # ================= EVENTS =================
@@ -256,7 +256,7 @@ def main():
 
                     selected_hex = pick_hex(
                         current_planet,
-                        event.pos,
+                        (event.pos[0] , event.pos[1]),
                         planet_center
                     )
 
@@ -341,6 +341,7 @@ def main():
 
 
 
+
             hover_hex = pick_hex(current_planet, pygame.mouse.get_pos(), (WIDTH//2, HEIGHT//2))
             if hover_hex:
                 lines = hex_tooltip_data(hover_hex, current_planet)
@@ -379,21 +380,25 @@ def main():
 
             # === HEX INFO ===
             if selected_hex:
+                res_str = ", ".join(
+                f"{k}:{v:.2f}" for k, v in selected_hex.resources.items())
+
                 lines = [
-                    f"TEMP: {selected_hex.temperature:.2f}",
-                    f"HEIGHT: {selected_hex.height:.2f}",
-                    f"LIFE: {selected_hex.life:.2f}",
-                    f"RES: {selected_hex.resources}",
-                ]
+                f"TEMP: {selected_hex.temperature:.2f}",
+                f"HEIGHT: {selected_hex.height:.2f}",
+                f"LIFE: {selected_hex.life:.2f}",
+                f"RES: {res_str}",
+            ]
+
                 for i, text in enumerate(lines):
                     img = font.render(text, True, (200, 200, 200))
-                    screen.blit(img, (10, 10 + i * 18))
+                    screen.blit(img, (10+ LEFT_PANEL_W, 600 + i * 18))
 
         elif current_view == BUILD_MENU:
             draw_planet(
                 screen,
                 current_planet,
-                (WIDTH // 2, HEIGHT // 2),
+                (LEFT_PANEL_W + (WIDTH - LEFT_PANEL_W)//2, HEIGHT // 2),
                 build_menu_hex,
                 overlay_mode
             )
@@ -404,6 +409,8 @@ def main():
                 build_menu_hex,
                 build_menu_items
             )
+
+
         font_small = pygame.font.SysFont(None, 18)
         font_big = pygame.font.SysFont(None, 24)
         energy_panel_x = 10+LEFT_PANEL_W 
@@ -477,29 +484,15 @@ def main():
 from buildings.registry import BUILDINGS
 
 def get_available_buildings(planet, hex):
-    items = []
-
+    available = []
+    print("1")
     for name, factory in BUILDINGS.items():
-        building = factory()
+        building = factory()          # nowa instancja
 
-        # EmpireSpacePort – tylko na start, nie w menu
-        if building.name == "Empire Space Port":
-            continue
+        if hex.can_build(building, planet):
+            available.append(building)
 
-        # SpacePort tylko dla nieskolonizowanych
-        if building.name == "Space Port" and planet.colonized:
-            continue
-
-        if not hex.can_build(building, planet):
-            continue
-
-        if not building.can_afford(planet):
-            continue
-
-        items.append(building)
-
-    return items
-
+    return available
 
 if __name__ == "__main__":
     try:

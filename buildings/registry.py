@@ -5,17 +5,23 @@ from buildings.Mining import MiningComplex
 from core.config import ADVANCED_RESOURCES
 
 BUILDINGS = {
+    # Infrastructure
     "Population Hub": lambda: PopulationHub(),
     "Space Port":     lambda: SpacePort(),
 
-    # Kopalnie - nazwy zgodne z resource
-    "Thermal Mine":   lambda: MiningComplex("thermal"),
-    "Cryo Mine":      lambda: MiningComplex("cryo"),
-    "Solids Mine":    lambda: MiningComplex("solids"),
-    "Fluidics Mine":  lambda: MiningComplex("fluidics"),
-    "Biomass Mine":   lambda: MiningComplex("biomass"),
-    "Compounds Mine": lambda: MiningComplex("compounds"),
+    # ⛏️ TIER 1: Extractors (Basic Resources)
+    "Energy Collector":       lambda: MiningComplex("energy"),
+    "Water Extractor":        lambda: MiningComplex("water"),
+    "Mining Complex":         lambda: MiningComplex("minerals"),
+    "Bio Harvester":          lambda: MiningComplex("organics"),
+    "Gas Collector":          lambda: MiningComplex("gases"),
+    "Rare Element Extractor": lambda: MiningComplex("rare_elements"),
+    
+    # 🏭 TIER 2: Refineries (Refined Resources)
+    "Smelter":          lambda: Refinery.Smelter(),           # minerals + energy → alloys
+    "Chemical Plant":   lambda: Refinery.ChemicalPlant(),     # gases + water + energy → chemicals
+    "Bioreactor":       lambda: Refinery.Bioreactor(),        # organics + water → biotech
+    "Polymer Factory":  lambda: Refinery.PolymerFactory(),    # organics + chemicals → plastics
+    "Electronics Fab":  lambda: Refinery.ElectronicsFab(),    # minerals + rares + energy → electronics
+    "Fuel Refinery":    lambda: Refinery.FuelRefinery(),      # organics + chemicals + gases → fuel
 }
-
-for res in ADVANCED_RESOURCES:
-    BUILDINGS[f"{res}_refinery"] = lambda r=res: Refinery(r)

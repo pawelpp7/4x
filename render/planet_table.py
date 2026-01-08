@@ -58,12 +58,12 @@ def draw_planet_hex_table(screen, planet, font, mouse_pos, scroll_y, sort_key):
         vals = [
             f"{h.temperature:+.2f}",
             f"{h.life:+.2f}",
-            f"{h.resources.get('thermal',0):.1f}",
-            f"{h.resources.get('cryo',0):.1f}",
-            f"{h.resources.get('solids',0):.1f}",
-            f"{h.resources.get('fluidics',0):.1f}",
-            f"{h.resources.get('biomass',0):.1f}",
-            f"{h.resources.get('compounds',0):.1f}",
+            f"{h.resources.get('energy',0):.1f}",
+            f"{h.resources.get('gases',0):.1f}",
+            f"{h.resources.get('minerals',0):.1f}",
+            f"{h.resources.get('water',0):.1f}",
+            f"{h.resources.get('organics',0):.1f}",
+            f"{h.resources.get('rare_elements',0):.1f}",
         ]
 
         cx = x + 50

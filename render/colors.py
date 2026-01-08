@@ -71,10 +71,10 @@ BACKGROUND = (10, 10, 15)
 
 
 RESOURCE_COLORS = {
-    "thermal":   (200, 80, 60),
-    "cryo":      (120, 180, 255),
-    "solids":    (160, 140, 110),
-    "fluidics":  (80, 140, 200),
-    "biomass":   (80, 180, 100),
-    "compounds": (180, 160, 220),
+    "energy":   (200, 80, 60),
+    "gases":      (120, 180, 255),
+    "minerals":    (160, 140, 110),
+    "water":  (80, 140, 200),
+    "organics":   (80, 180, 100),
+    "rare_elements": (180, 160, 220),
 }

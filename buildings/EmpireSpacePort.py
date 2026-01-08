@@ -2,6 +2,7 @@ from buildings.Building import Building
 from buildings.constants import BUILDING_EMPIRE_UNIQUE
 from core.config import BASIC_RESOURCES
 from empire.Population import Population
+from planet.resources import ALL_RESOURCES
 
 class EmpireSpacePort(Building):
     def __init__(self):
@@ -27,9 +28,16 @@ class EmpireSpacePort(Building):
 
         # inicjalizacja kolonii
         planet.colonized = True
-        planet.owner = self.owner
         planet.population = Population(size=5.0)
-
+        planet.population.planet = planet
+        planet.owner = self.owner
         self.owner.planets.append(planet)
+
+        planet.init_population_stats()
+        planet.storage = {r: 0.0 for r in ALL_RESOURCES}
+        planet.storage = {r: 10.0 for r in BASIC_RESOURCES}
+
+
+
 
         return True, "Empire SpacePort established (starting colony)"

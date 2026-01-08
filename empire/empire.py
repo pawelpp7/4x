@@ -1,7 +1,7 @@
 from ai.simple_ai import SimpleAI
 
 class Empire:
-    def __init__(self, name, color, galaxy, is_player=False,energy=100):
+    def __init__(self, name, color, galaxy, is_player=False,energy=200):
         self.name = name
         self.color = color
         self.galaxy = galaxy

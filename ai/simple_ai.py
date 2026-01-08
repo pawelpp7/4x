@@ -9,110 +9,240 @@ class SimpleAI:
         self.empire = empire
         self.galaxy = galaxy
         self.cooldown = 0
+        self.colonization_cooldown = 0
 
     def tick(self):
+        """Główna pętla AI - wykonuje akcje co kilka ticków"""
         self.cooldown -= 1
+        self.colonization_cooldown -= 1
+        
         if self.cooldown > 0:
             return
-        self.cooldown = 10
+        
+        self.cooldown = 5  # szybsze reakcje
 
-        planet = self.pick_planet()
-        if not planet:
-            return
-
-        # === KOLONIZACJA ===
-        if not planet.colonized:
-            spaceport = SpacePort()
-            spaceport.owner = self.empire
-
-            free_hex = next(
-                (h for h in planet.hex_map.hexes if not h.is_blocked()),
-                None
-            )
-            if not free_hex:
+        # 1️⃣ Priorytet: KOLONIZACJA (jeśli mamy dużo zasobów)
+        if self.colonization_cooldown <= 0 and len(self.empire.planets) < 5:
+            if self.try_colonize():
+                self.colonization_cooldown = 20  # cooldown na kolejną kolonizację
                 return
 
-            source = self.pick_source_planet()
-            if not source:
-                return
+        # 2️⃣ Rozwój istniejących planet
+        if self.empire.planets:
+            planet = self.pick_development_planet()
+            if planet:
+                self.develop_planet(planet)
 
-            success, msg = spaceport.build(planet, free_hex, source)
+    def try_colonize(self):
+        """Próbuje skolonizować nową planetę"""
+        
+        # Znajdź planety z wystarczającymi zasobami do kolonizacji
+        valid_sources = []
+        for p in self.empire.planets:
+            if not p.colonized or not p.population:
+                continue
+                
+            # SpacePort wymaga: thermal=10, solids=5
+            if (p.storage.get('energy', 0) >= 15 and 
+                p.storage.get('minerals', 0) >= 10 and
+                p.population.size >= 2.0):
+                valid_sources.append(p)
+        
+        if not valid_sources:
+            return False
+        
+        source = max(valid_sources, key=lambda p: p.population.size)
+        
+        # Znajdź nieskolonizowaną planetę w systemie lub sąsiednim
+        target = self.find_colonization_target(source)
+        
+        if not target:
+            return False
+        
+        # Zbuduj SpacePort
+        spaceport = SpacePort()
+        spaceport.owner = self.empire
+        
+        free_hex = next(
+            (h for h in target.hex_map.hexes if not h.is_blocked()),
+            None
+        )
+        
+        if not free_hex:
+            return False
+        
+        success, msg = spaceport.build(target, free_hex, source)
+        
+        if success:
+            print(f"[AI {self.empire.name}] {msg}")
+            return True
+        
+        return False
 
-            if success:
-                print(f"[AI] {msg}")
-            return
+    def find_colonization_target(self, source_planet):
+        """Znajduje najlepszą planetę do kolonizacji"""
+        
+        # Znajdź system source_planet
+        source_system = None
+        for entry in self.galaxy.systems:
+            if source_planet in entry["system"].planets:
+                source_system = entry
+                break
+        
+        if not source_system:
+            return None
+        
+        candidates = []
+        
+        # 1️⃣ Planety w tym samym systemie
+        for p in source_system["system"].planets:
+            if not p.colonized and p != source_planet:
+                candidates.append((p, 0))  # priorytet 0 = najwyższy
+        
+        # 2️⃣ Planety w sąsiednich systemach
+        for neighbor in source_system["links"]:
+            for p in neighbor["system"].planets:
+                if not p.colonized:
+                    candidates.append((p, 1))  # niższy priorytet
+        
+        if not candidates:
+            return None
+        
+        # Sortuj: najpierw po priorytecie, potem po zasobach
+        candidates.sort(key=lambda x: (
+            x[1],  # priorytet (0 = ten sam system)
+            -self.evaluate_planet_resources(x[0])  # malejąco po zasobach
+        ))
+        
+        return candidates[0][0]
 
-        # === ROZWÓJ ===
+    def evaluate_planet_resources(self, planet):
+        """Ocenia wartość planety na podstawie zasobów"""
+        total = 0.0
+        for h in planet.hex_map.hexes:
+            total += sum(h.resources.values())
+        return total
+
+    def pick_development_planet(self):
+        """Wybiera planetę do rozwoju"""
+        if not self.empire.planets:
+            return None
+        
+        # Priorytet: planeta z największą populacją i wolnymi hexami
+        candidates = []
+        
+        for p in self.empire.planets:
+            if not p.colonized or not p.population:
+                continue
+            
+            free_hexes = [
+                h for h in p.hex_map.hexes
+                if not h.is_blocked() and h.can_build(PopulationHub(), p)
+            ]
+            
+            if free_hexes:
+                # Ocena: populacja + wolne hexy + zasoby
+                score = (
+                    p.population.size * 2 +
+                    len(free_hexes) +
+                    sum(p.storage.values()) / 100
+                )
+                candidates.append((p, score))
+        
+        if not candidates:
+            return None
+        
+        candidates.sort(key=lambda x: -x[1])
+        return candidates[0][0]
+
+    def develop_planet(self, planet):
+        """Rozwija wybraną planetę"""
+        
+        # Wybierz hex
         hex = self.pick_hex(planet)
         if not hex:
             return
-
+        
+        # Wybierz budynek
         building = self.pick_building(planet, hex)
         if not building:
             return
-
+        
         building.owner = self.empire
         success, msg = building.build(planet, hex)
-
+        
         if success:
-            print(f"[AI] {msg}")
-
-
-    def pick_planet(self):
-        if self.empire.planets:
-            return random.choice(self.empire.planets)
-
-        for entry in self.galaxy.systems:
-            for p in entry["system"].planets:
-                if not p.colonized:
-                    return p
-        return None
+            print(f"[AI {self.empire.name}] {msg}")
 
     def pick_hex(self, planet):
+        """Wybiera najlepszy hex do budowy"""
         free_hexes = [
             h for h in planet.hex_map.hexes
-            if not h.is_blocked() or len(h.buildings_small) < h.MAX_SMALL_BUILDINGS
+            if (not h.is_blocked() or 
+                len(h.buildings_small) < planet.hex_cap)
         ]
+        
         if not free_hexes:
             return None
-
-        max_val = max(sum(h.resources.values()) for h in free_hexes) if free_hexes else 0
-        if max_val == 0:
-            return random.choice(free_hexes)
+        
+        # Oceń hexy po zasobach
+        hex_scores = []
+        for h in free_hexes:
+            score = sum(h.resources.values())
             
-        top_hexes = [h for h in free_hexes if sum(h.resources.values()) >= 0.8 * max_val]
-        return random.choice(top_hexes) if top_hexes else random.choice(free_hexes)
+            # Bonus za wolne hexy (bez budynków)
+            if not h.buildings_small:
+                score += 1.0
+            
+            hex_scores.append((h, score))
+        
+        # Wybierz top 20% i losuj z nich
+        hex_scores.sort(key=lambda x: -x[1])
+        top_count = max(1, len(hex_scores) // 5)
+        top_hexes = [h for h, _ in hex_scores[:top_count]]
+        
+        return random.choice(top_hexes)
 
     def pick_building(self, planet, hex):
+        """Wybiera najlepszy budynek do postawienia"""
+        
         P = planet.population.size
         B = planet.total_buildings()
-
-        # Population Hub - gdy jest już kilka budynków
-        if B > 0 and P > (B / 5):
-            return PopulationHub()
-
-        # Kopalnie według zasobów hexa
+        
+        # 1️⃣ Population Hub - priorytet gdy mało populacji
+        if B > 2 and P < (B * 0.3):
+            hub = PopulationHub()
+            if hex.can_build(hub, planet) and hub.can_afford(planet):
+                return hub
+        
+        # 2️⃣ Kopalnie - priorytet dla hexów z zasobami
         if hex.resources:
+            # Znajdź najlepszy zasób na hexie
             best_res = max(hex.resources, key=hex.resources.get)
-            # Mapowanie resource -> building name
-            mine_mapping = {
-                "thermal": "Thermal Mine",
-                "cryo": "Cryo Mine",
-                "solids": "Solids Mine",
-                "fluidics": "Fluidics Mine",
-                "biomass": "Biomass Mine",
-                "compounds": "Compounds Mine",
-            }
-            mine_name = mine_mapping.get(best_res)
-            if mine_name:
-                factory = BUILDINGS.get(mine_name)
-                if factory:
-                    return factory()
-
-        return None
-    
-    def pick_source_planet(self):
-        for p in self.empire.planets:
-            if p.colonized and p.population.size >= 1.0:
-                return p
+            best_val = hex.resources[best_res]
+            
+            # Buduj kopalnię tylko jeśli zasób jest znaczący
+            if best_val > 0.3:
+                mine_mapping = {
+                    "thermal": "Thermal Mine",
+                    "cryo": "Cryo Mine",
+                    "solids": "Solids Mine",
+                    "fluidics": "Fluidics Mine",
+                    "biomass": "Biomass Mine",
+                    "exotics": "Exotics Mine",
+                }
+                
+                mine_name = mine_mapping.get(best_res)
+                if mine_name:
+                    factory = BUILDINGS.get(mine_name)
+                    if factory:
+                        mine = factory()
+                        if hex.can_build(mine, planet) and mine.can_afford(planet):
+                            return mine
+        
+        # 3️⃣ Population Hub - fallback gdy nic lepszego
+        hub = PopulationHub()
+        if hex.can_build(hub, planet) and hub.can_afford(planet):
+            return hub
+        
         return None

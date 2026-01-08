@@ -2,6 +2,7 @@
 
 from buildings.PopulationHub import PopulationHub
 from buildings.SpacePort import SpacePort
+from core.config import BASIC_RESOURCES
 from planet.hex_map import HexMap
 from empire.Population import Population
 from planet.sources import (
@@ -12,7 +13,8 @@ from planet.sources import (
     ErosionSource,
     ToxicSource,
 )
-from planet.resources import calculate_resources, ALL_RESOURCES
+from planet.resources import ALL_RESOURCES, calculate_resources
+
 from buildings.constants import BUILDING_SMALL, BUILDING_PLANET_UNIQUE
 from core.rng import uniform, choice
 from collections import defaultdict
@@ -24,9 +26,9 @@ MAX_STAT_RANGE = 8.0
 
 
 COLONIZATION_COST = {
-    "compounds": 30,
-    "biomass": 20,
-    "fluidics": 15,
+    "rare_elements": 30,
+    "organics": 20,
+    "water": 15,
 }
 
 
@@ -36,9 +38,12 @@ class Planet:
         self.owner = None
         self.radius = radius
 
-        self.population = None
+        self.population = Population(size=0.0)
         self.population_hub = PopulationHub()
         self.spaceport = None
+        
+        # ✅ NOWE: maksymalna populacja (carrying capacity)
+        self.max_population = 100.0  # bazowy cap
 
         self.building_limits = defaultdict(int)
         self.buildings = []
@@ -52,9 +57,11 @@ class Planet:
         self.colonization_progress = 0.0
         self.colonization_time = 10.0
 
-        self.storage = {r: 0.0 for r in ALL_RESOURCES}
-        
-        self.hex_cap=2
+        self.storage = {}
+
+        for res in ALL_RESOURCES:
+            self.storage[res] = 0.0
+        self.hex_cap = 2
 
         self.hex_map = HexMap(radius)
 
@@ -167,7 +174,7 @@ class Planet:
         self.primary_resource = max(total, key=total.get)
 
     def init_population_stats(self):
-        stats = {r: 0.0 for r in ALL_RESOURCES}
+        stats = {r: 0.0 for r in BASIC_RESOURCES}
         for h in self.hex_map.hexes:
             for res, val in h.resources.items():
                 if val > stats[res]:
@@ -206,49 +213,32 @@ class Planet:
     # ------------------------------------------------------------------
 
     def produce(self):
-        if not self.colonized or self.population is None:
+        if not self.colonized or self.population.size == 0:
             return {}
 
-        total_output = {}
-        total_energy_cost = 0.0
-
-        # reset użycia populacji na tick
+        total = {}
         self.population.used = 0.0
 
         for h in self.hex_map.hexes:
+
+            # SMALL
             for b in h.buildings_small:
-                workers = getattr(b, "workers_required", 0.0)
+                self._process_building(b, h, total)
 
-                # brak ludzi → budynek nie działa
-                if not self.population.can_support(workers):
-                    continue
+            # MAJOR
+            if h.building_major:
+                self._process_building(h.building_major, h, total)
 
-                # przydziel ludzi
-                self.population.add_load(workers)
-
-                # produkcja
-                out = b.produce(h, self.population)
-                for r, v in out.items():
-                    total_output[r] = total_output.get(r, 0.0) + v
-
-                # koszt energii zależny od ekstremów planety
-                base_energy = getattr(b, "energy_cost", 0.0)
-                total_energy_cost += base_energy * (1.0 + self.instability())
-
-        # zapłać energię imperium
-        if self.owner:
-            self.owner.energy -= total_energy_cost
-
-
-        return total_output
+        return total
 
 
     # ------------------------------------------------------------------
     # TICK
     # ------------------------------------------------------------------
 
+
     def tick(self):
-        if not self.colonized or self.population is None:
+        if not self.colonized or self.population.size==0:
             return
         if self.colonization_state == "colonizing":
             self.colonization_progress += 1
@@ -260,11 +250,30 @@ class Planet:
         for res, amount in production.items():
             self.storage[res] = self.storage.get(res, 0.0) + amount
 
+        # ⚖️ ZBALANSOWANY WZROST POPULACJI
+        
+        # 1️⃣ Bazowy wzrost (z planet.population.growth, domyślnie 0.01 = 1%)
         inst = self.instability()
-        inst = self.instability()
-        growth_mod = max(0.2, 1.0 - inst) 
-
-        self.population.size *= 1.0 + self.population.growth * growth_mod
+        growth_mod = max(0.2, 1.0 - inst)
+        
+        # 2️⃣ Carrying capacity (max populacja)
+        max_pop = getattr(self, 'max_population', 100.0)  # domyślnie 100
+        current_pop = self.population.size
+        
+        # 3️⃣ Logistic growth - spowalnia gdy zbliżamy się do cap
+        # Formula: growth * (1 - current/max)
+        capacity_factor = max(0.0, 1.0 - (current_pop / max_pop))
+        
+        # 4️⃣ Oblicz faktyczny wzrost
+        # Procentowy wzrost, ale ograniczony przez capacity
+        growth_rate = self.population.growth * growth_mod * capacity_factor
+        absolute_growth = current_pop * growth_rate
+        
+        # 5️⃣ Zastosuj wzrost
+        self.population.size += absolute_growth
+        
+        # 6️⃣ Hard cap (nigdy powyżej max)
+        self.population.size = min(self.population.size, max_pop)
 
 
     # ------------------------------------------------------------------
@@ -272,7 +281,7 @@ class Planet:
     # ------------------------------------------------------------------
 
     def energy_delta(self):
-        if not self.colonized or self.population is None:
+        if not self.colonized or self.population.size==0:
             return {}
 
         return self.population.free * ENERGY_PER_FREE_POP
@@ -286,18 +295,18 @@ class Planet:
             return False
         if self.owner is not None:
             return False
-        return empire.has_spaceport_in_system(self)
+        return True
 
     def start_colonization(self, empire):
         if not self.can_colonize(empire):
             return False
 
         for res, cost in COLONIZATION_COST.items():
-            if empire.storage.get(res, 0) < cost:
+            if empire.energy < 50:
                 return False
 
         for res, cost in COLONIZATION_COST.items():
-            empire.storage[res] -= cost
+            empire.energy -= 50
 
         self.owner = empire
         self.colonization_state = "colonizing"
@@ -309,5 +318,34 @@ class Planet:
         self.colonized = True
         self.population = Population(size=1.0)
         self.init_population_stats()
-        self.storage = {r: 10.0 for r in ALL_RESOURCES}
+        self.storage = {r: 10.0 for r in BASIC_RESOURCES}
         print(f"COLONY Planet {id(self)} colonized by {self.owner.name}")
+
+
+    def _process_building(self, b, hex, total):
+        workers = getattr(b, "workers_required", 0.0)
+        
+        if not self.population.can_support(workers):
+            return
+
+        delta = b.produce(hex, self.population)
+
+        # 1️⃣ SPRAWDŹ INPUTY
+        for res, val in delta.items():
+            if val < 0 and self.storage.get(res, 0.0) < -val:
+                return  # brak surowców → budynek nie działa
+
+        # 2️⃣ ZASTOSUJ DELTĘ
+        for res, val in delta.items():
+            self.storage[res] = self.storage.get(res, 0.0) + val
+            total[res] = total.get(res, 0.0) + val
+
+        self.population.add_load(workers)
+
+
+
+    def get_center_hex(self):
+        return min(
+            self.hex_map.hexes,
+            key=lambda h: abs(h.q) + abs(h.r)
+        )

@@ -11,7 +11,7 @@ class Population:
     def __init__(self, size=7.0):
         self.size = size
         self.used = 0.0
-        self.growth=0.01
+        self.growth=0.02
         self.happiness=1.0
 
         self.stats = {
@@ -35,3 +35,10 @@ class Population:
 
     def add_load(self, load):
         self.used += load
+
+
+    def total(self):
+        if isinstance(self.size, dict):
+            return sum(self.size.values())
+        return float(self.size)
+    

@@ -1,10 +1,10 @@
 RESOURCE_TO_POP_STAT = {
-    "thermal": "thermal",
-    "cryo": "cryo",
-    "fluidics": "fluidics",
-    "solids": "solids",
-    "biomass": "biomass",
-    "exotics": "exotics",
+    "energy":  "energy",
+    "gases": "gases",
+    "water": "water",
+    "minerals":"minerals",
+    "organics": "organics",
+    "rare_elements": "rare_elements",
 }
 def population_resource_bonus(population, resource):
     """
