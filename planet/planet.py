@@ -182,12 +182,20 @@ class Planet:
         self.population.stats = stats
         
     def can_build(self, building):
+        # Space Port zawsze można budować (jeśli limit pozwala)
+        if building.name == "Space Port":
+            return True
+
+        # Inne budynki tylko po kolonizacji
         if not self.colonized:
-            return building.name == "Space Port"
+            return False
+
         key = building.limit_key()
         if key is None:
             return True
+
         return self.building_limits[key] == 0
+
 
     # ------------------------------------------------------------------
     # EXTREMES / INSTABILITY
@@ -238,13 +246,13 @@ class Planet:
 
 
     def tick(self):
-        if not self.colonized or self.population.size==0:
-            return
         if self.colonization_state == "colonizing":
             self.colonization_progress += 1
             if self.colonization_progress >= self.colonization_time:
                 self.finish_colonization()
 
+        if not self.colonized or self.population.size==0:
+            return
         production = self.produce()
 
         for res, amount in production.items():
@@ -301,12 +309,7 @@ class Planet:
         if not self.can_colonize(empire):
             return False
 
-        for res, cost in COLONIZATION_COST.items():
-            if empire.energy < 50:
-                return False
-
-        for res, cost in COLONIZATION_COST.items():
-            empire.energy -= 50
+        
 
         self.owner = empire
         self.colonization_state = "colonizing"
@@ -316,6 +319,7 @@ class Planet:
     def finish_colonization(self):
         self.colonization_state = "colonized"
         self.colonized = True
+        self.owner.planets.append(self)
         self.population = Population(size=1.0)
         self.init_population_stats()
         self.storage = {r: 10.0 for r in BASIC_RESOURCES}
@@ -349,3 +353,9 @@ class Planet:
             self.hex_map.hexes,
             key=lambda h: abs(h.q) + abs(h.r)
         )
+
+    def has_spaceport(self):
+        for h in self.hex_map.hexes:
+            if h.building_major and h.building_major.name == "Space Port":
+                return True
+        return False

@@ -1,5 +1,6 @@
 # main.py
 from buildings.EmpireSpacePort import EmpireSpacePort
+from core.init import init_start_planet
 import pygame
 import math
 
@@ -19,6 +20,8 @@ GALAXY_VIEW = 0
 SYSTEM_VIEW = 1
 PLANET_VIEW = 2
 BUILD_MENU = 3
+SELECT_SOURCE = 4
+
 
 LEFT_PANEL_W = 550
 
@@ -43,6 +46,10 @@ def main():
     build_buttons = []
     header_clicks = []
     sort_key = "energy"
+    colonization_mode = False
+    colonization_target = None
+    colonization_sources = []
+
     
     
 
@@ -62,36 +69,18 @@ def main():
     font = pygame.font.SysFont(None, 18)
 
     galaxy = Galaxy(system_count=40, size=900)
+
     empire = Empire("Player", (80, 200, 120), galaxy, is_player=True)
     ai_empire = Empire("AI Empire", (200, 70, 180), galaxy)
 
     galaxy.empires.extend([empire, ai_empire])
 
-    # 🔨 NOWA LOGIKA - startowa planeta dla gracza
-    start_system = galaxy.systems[0]["system"]
-    start_planet = start_system.planets[0]
-    
-    start_hex = min(
-    start_planet.hex_map.hexes,
-    key=lambda h: abs(h.q) + abs(h.r)
-)
- 
-    
+    # ✅ START PLAYER
+    init_start_planet(empire, galaxy.systems[0])
 
-    if start_hex is None:
-        raise RuntimeError("No valid hex for EmpireSpacePort on starting planet")
+    # ✅ START AI (INNY SYSTEM!)
+    init_start_planet(ai_empire, galaxy.systems[1])
 
-    esp = EmpireSpacePort()
-    esp.owner = empire
-    success, msg = esp.build(start_planet, start_hex)
-
-    print("INIT", msg if success else f"FAILED: {msg}")
-
-
-    if success:
-        print(f"INIT Player starting planet: {msg}")
-    else:
-        print(f"INIT Failed to initialize starting planet: {msg}")
 
     prod = galaxy.produce()
     print("=== GALACTIC PRODUCTION (1 TICK) ===")
@@ -112,7 +101,6 @@ def main():
     while running:
         # ================= EVENTS =================
         for event in pygame.event.get():
-
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEWHEEL:
@@ -163,21 +151,65 @@ def main():
                         current_view = BUILD_MENU
 
                 # === BUILD MENU ===
-                elif current_view == BUILD_MENU:
+                elif current_view == BUILD_MENU and event.type == pygame.KEYDOWN:
                     idx = event.key - pygame.K_1
                     if 0 <= idx < len(build_menu_items):
                         building = build_menu_items[idx]
-                        building.owner = empire
-                        
-                        # 🔨 NOWA LOGIKA - używamy build()
-                        success, msg = building.build(current_planet, build_menu_hex)
-                        
-                        if success:
-                            print(f"PLAYER {msg}")
+                        print(idx)
+                        print(building.name)
+                        # === SPACE PORT → TRYB KOLONIZACJI ===
+                        if building.name == "Space Port":
+                            colonization_mode = True
+                            colonization_target = current_planet
+
+                            colonization_sources = find_valid_source_planets(empire, building)
+
+                            if not colonization_sources:
+                                print("No valid source planets for colonization!")
+                                colonization_mode = False
+                                current_view = PLANET_VIEW
+                            else:
+                                current_view = SELECT_SOURCE
+
+                        # === NORMALNA BUDOWA ===
                         else:
-                            print(f"PLAYER Build failed: {msg}")
-                        
+                            building.owner = empire
+                            success, msg = building.build(current_planet, build_menu_hex)
+
+                            if success:
+                                print(f"PLAYER {msg}")
+                            else:
+                                print(f"PLAYER Build failed: {msg}")
+
+                            current_view = PLANET_VIEW
+                elif current_view == SELECT_SOURCE and event.type == pygame.KEYDOWN:
+
+                    if event.key == pygame.K_ESCAPE:
+                        colonization_mode = False
                         current_view = PLANET_VIEW
+
+                    else:
+                        idx = event.key - pygame.K_1
+                        if 0 <= idx < len(colonization_sources):
+                            source_planet = colonization_sources[idx]
+
+                            spaceport = SpacePort()
+                            spaceport.owner = empire
+
+                            success, msg = spaceport.build(
+                                colonization_target,
+                                build_menu_hex,
+                                source_planet
+                            )
+
+                            if success:
+                                print(f"PLAYER {msg}")
+                            else:
+                                print(f"PLAYER Colonization failed: {msg}")
+
+                            colonization_mode = False
+                            current_view = PLANET_VIEW
+
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
 
@@ -259,6 +291,7 @@ def main():
                         (event.pos[0] , event.pos[1]),
                         planet_center
                     )
+           
 
 
 
@@ -409,6 +442,21 @@ def main():
                 build_menu_hex,
                 build_menu_items
             )
+        elif current_view == SELECT_SOURCE:
+            draw_planet(
+                screen,
+                colonization_target,
+                (LEFT_PANEL_W + (WIDTH - LEFT_PANEL_W)//2, HEIGHT // 2),
+                build_menu_hex,
+                overlay_mode
+            )
+
+            draw_source_selection_menu(
+                screen,
+                colonization_sources,
+                galaxy,
+                font
+            )
 
 
         font_small = pygame.font.SysFont(None, 18)
@@ -493,6 +541,85 @@ def get_available_buildings(planet, hex):
             available.append(building)
 
     return available
+def find_valid_source_planets(empire, spaceport):
+    valid = []
+
+    for planet in empire.planets:
+        if not planet.colonized or planet.population is None:
+            continue
+
+        if planet.population.size < 1.0:
+            continue
+
+        ok = True
+        for res, amount in spaceport.cost.items():
+            if planet.storage.get(res, 0.0) < amount:
+                ok = False
+                break
+
+        if ok:
+            valid.append(planet)
+
+    return valid
+def draw_source_selection_menu(screen, sources, galaxy, font):
+    """Menu wyboru planety źródłowej dla kolonizacji"""
+    
+    w, h = screen.get_size()
+    x = w // 2 - 200
+    y = h // 2 - 250
+    
+    # Tło
+    pygame.draw.rect(screen, (15, 15, 30), (x, y, 400, 480))
+    pygame.draw.rect(screen, (120, 120, 180), (x, y, 400, 480), 2)
+    
+    # Tytuł
+    title = font.render("SELECT SOURCE PLANET", True, (255, 255, 255))
+    screen.blit(title, (x + 80, y + 10))
+    
+    y += 40
+    
+    if not sources:
+        msg = font.render("No valid source planets!", True, (200, 80, 80))
+        screen.blit(msg, (x + 80, y + 100))
+        return
+    
+    # Lista planet
+    for i, planet in enumerate(sources):
+        py = y + i * 80
+        
+        # Ramka planety
+        pygame.draw.rect(screen, (40, 40, 60), (x + 10, py, 380, 70))
+        pygame.draw.rect(screen, (100, 100, 140), (x + 10, py, 380, 70), 1)
+        
+        # Numer
+        num = font.render(f"{i+1}.", True, (220, 220, 220))
+        screen.blit(num, (x + 20, py + 10))
+        
+        # Lokalizacja
+        system, orbit = planet.get_location(galaxy)
+        location = f"System {system.star.type if system else '??'}, Orbit {orbit}"
+        loc_text = font.render(location, True, (180, 180, 200))
+        screen.blit(loc_text, (x + 50, py + 10))
+        
+        # Populacja
+        pop_text = font.render(f"Pop: {planet.population.size:.1f}", True, (200, 200, 200))
+        screen.blit(pop_text, (x + 50, py + 28))
+        
+        # Zasoby
+        energy = planet.storage.get('energy', 0)
+        minerals = planet.storage.get('minerals', 0)
+        
+        res_color = (80, 200, 120) if energy >= 10 and minerals >= 5 else (200, 80, 80)
+        res_text = font.render(
+            f"Resources: {energy:.0f} energy, {minerals:.0f} minerals",
+            True, res_color
+        )
+        screen.blit(res_text, (x + 50, py + 46))
+    
+    # Instrukcja
+    instruction = font.render("Press 1-9 to select source, ESC to cancel", True, (150, 150, 150))
+    screen.blit(instruction, (x + 40, y + len(sources) * 80 + 20))
+
 
 if __name__ == "__main__":
     try:

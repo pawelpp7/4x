@@ -9,6 +9,12 @@ class Empire:
         self.is_player = is_player
         self.energy_last=100.0
         self.planets = []
+        
+        for p in self.planets:
+            p.owner = self
+            p.colonized = True
+            self.planets.append(p)
+
 
 
         self.ai = None
@@ -19,6 +25,10 @@ class Empire:
     def tick(self):
         if not self.is_player:
             self.ai.tick()
+        for p in self.planets:
+            if p.owner is not self:
+                print("❌ PLANET OWNER DESYNC", p)
+
             
         
     def status(self, galaxy):

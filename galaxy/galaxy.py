@@ -151,3 +151,9 @@ class Galaxy:
 
         for planet in empire.planets:
             planet.population.size *= 0.98  
+
+    def find_system_entry_of_planet(self, planet):
+        for entry in self.systems:
+            if planet in entry["system"].planets:
+                return entry
+        return None

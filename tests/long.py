@@ -1,3 +1,6 @@
+from buildings.SpacePort import SpacePort
+
+
 def test_longterm_ai_gameplay(turns=100):
     """Test długoterminowej rozgrywki AI vs AI"""
     
@@ -44,17 +47,24 @@ def test_longterm_ai_gameplay(turns=100):
         e1_buildings = sum(p.total_buildings() for p in empire1.planets)
         e2_buildings = sum(p.total_buildings() for p in empire2.planets)
         
+        e1_storage = empire_storage_sum(empire1)
+        e2_storage = empire_storage_sum(empire2)
+
         stats.append({
             'turn': turn,
             'e1_planets': len(empire1.planets),
             'e1_pop': e1_pop,
             'e1_energy': empire1.energy,
             'e1_buildings': e1_buildings,
+            'e1_storage': e1_storage,
+
             'e2_planets': len(empire2.planets),
             'e2_pop': e2_pop,
             'e2_energy': empire2.energy,
             'e2_buildings': e2_buildings,
+            'e2_storage': e2_storage,
         })
+
         
         # Raport co 10 turów
         report_interval = max(10, turns // 10)
@@ -177,10 +187,15 @@ def test_longterm_ai_gameplay(turns=100):
         return False
 
 
+# Dodaj na początku longterm.py dla lepszego debugowania
+
 def init_empire_start(empire, planet):
-    """Inicjalizuje imperium na planecie startowej"""
+    """Inicjalizuje imperium na planecie startowej z debugowaniem"""
     from buildings.EmpireSpacePort import EmpireSpacePort
     from empire.Population import Population
+    
+    print(f"\n=== Initializing {empire.name} ===")
+    print(f"  Planet ID: {id(planet)}")
     
     esp = EmpireSpacePort()
     esp.owner = empire
@@ -194,14 +209,145 @@ def init_empire_start(empire, planet):
     if not free_hex:
         raise RuntimeError("No valid hex for starting planet")
     
+    print(f"  Building on hex: ({free_hex.q}, {free_hex.r})")
+    
     success, msg = esp.build(planet, free_hex)
     
     if not success:
         raise RuntimeError(f"Failed to initialize empire: {msg}")
     
+    print(f"  ✓ {msg}")
+    print(f"  Planet colonized: {planet.colonized}")
+    print(f"  Planet owner: {planet.owner.name if planet.owner else 'None'}")
+    print(f"  Planet population: {planet.population.size if planet.population else 'None'}")
+    print(f"  Empire planets: {len(empire.planets)}")
+    
     # Dodaj początkowe zasoby
     for res in planet.storage.keys():
         planet.storage[res] = 50.0
+    
+    print(f"  Starting resources: {sum(planet.storage.values()):.0f} total")
+    print()
+
+
+# Dodaj też debug do AI tick w SimpleAI:
+
+def tick(self):
+    """Główna pętla AI - wykonuje akcje co kilka ticków"""
+    self.cooldown -= 1
+    self.colonization_cooldown -= 1
+    
+    if self.cooldown > 0:
+        return
+    
+    self.cooldown = 3
+    
+    # DEBUG: Co 50 turów pokaż status
+    if self.galaxy.turn % 50 == 0:
+        print(f"\n[AI {self.empire.name}] Turn {self.galaxy.turn} Status:")
+        print(f"  Planets: {len(self.empire.planets)}")
+        print(f"  Colonization cooldown: {self.colonization_cooldown}")
+        
+        for i, p in enumerate(self.empire.planets):
+            print(f"  Planet {i}: pop={p.population.size:.1f}, "
+                  f"energy={p.storage.get('energy', 0):.0f}, "
+                  f"minerals={p.storage.get('minerals', 0):.0f}")
+
+    # 1️⃣ PRIORYTET: KOLONIZACJA
+    if self.colonization_cooldown <= 0 and len(self.empire.planets) < 15:
+        print(f"[AI {self.empire.name}] Attempting colonization...")
+        if self.try_colonize():
+            self.colonization_cooldown = 10
+            return
+        else:
+            print(f"[AI {self.empire.name}] Colonization failed - will retry in 10 turns")
+            self.colonization_cooldown = 10  # Również ustaw cooldown na failure
+
+    # 2️⃣ Rozwój
+    if self.empire.planets:
+        planet = self.pick_development_planet()
+        if planet:
+            self.develop_planet(planet)
+
+
+# W try_colonize dodaj więcej debugowania:
+
+def try_colonize(self):
+    """Próbuje skolonizować nową planetę"""
+    
+    if not self.empire.planets:
+        print(f"  No planets to colonize from")
+        return False
+    
+    # 1️⃣ Znajdź valid source planets
+    valid_sources = []
+    for p in self.empire.planets:
+        if not p.colonized or not p.population:
+            print(f"  Planet {id(p)} not colonized or no population")
+            continue
+        
+        energy = p.storage.get('energy', 0)
+        minerals = p.storage.get('minerals', 0)
+        pop = p.population.size
+        
+        print(f"  Checking planet {id(p)}: energy={energy:.1f}, minerals={minerals:.1f}, pop={pop:.1f}")
+        
+        if energy >= 12 and minerals >= 7 and pop >= 1.5:
+            valid_sources.append(p)
+            print(f"    ✓ Valid source!")
+        else:
+            print(f"    ✗ Insufficient resources")
+    
+    if not valid_sources:
+        print(f"  No valid source planets found")
+        return False
+    
+    source = max(valid_sources, 
+                key=lambda p: p.storage.get('energy', 0) + p.storage.get('minerals', 0))
+    
+    print(f"  Selected source: {id(source)}")
+    
+    # 2️⃣ Znajdź target
+    target = self.find_colonization_target(source)
+    if not target:
+        print(f"  No colonization target found")
+        return False
+    
+    print(f"  Selected target: {id(target)}")
+    
+    # 3️⃣ Znajdź wolny hex
+    free_hex = next(
+        (h for h in target.hex_map.hexes if not h.is_blocked()),
+        None
+    )
+    if not free_hex:
+        print(f"  No free hex on target")
+        return False
+    
+    print(f"  Building on hex: ({free_hex.q}, {free_hex.r})")
+    
+    # 4️⃣ Zbuduj SpacePort
+    spaceport = SpacePort()
+    spaceport.owner = self.empire
+    
+    print(f"  Calling SpacePort.build()")
+    print(f"    Source energy before: {source.storage.get('energy', 0):.1f}")
+    print(f"    Source minerals before: {source.storage.get('minerals', 0):.1f}")
+    print(f"    Source pop before: {source.population.size:.1f}")
+    
+    success, msg = spaceport.build(target, free_hex, source)
+    
+    if success:
+        print(f"  ✓ SUCCESS: {msg}")
+        print(f"    Source energy after: {source.storage.get('energy', 0):.1f}")
+        print(f"    Source pop after: {source.population.size:.1f}")
+        print(f"    Target colonized: {target.colonized}")
+        print(f"    Target pop: {target.population.size:.1f}")
+        return True
+    else:
+        print(f"  ✗ FAILED: {msg}")
+    
+    return False
 
 
 def create_charts(stats, empire1_name, empire2_name, turns):
@@ -396,6 +542,46 @@ def create_charts(stats, empire1_name, empire2_name, turns):
     Plotly.newPlot('energyChart', energyData, energyLayout);
     </script>
 """
+    # Total storage chart
+    html += """
+    <div class="chart">
+        <h2>Total Stored Resources</h2>
+        <div id="storageChart"></div>
+    </div>
+
+    <script>
+    var storageData = [
+        {
+            x: """ + str(turns_data) + """,
+            y: """ + str([
+                sum(s['e1_storage'].values()) for s in stats
+            ]) + """,
+            name: '""" + empire1_name + """',
+            type: 'scatter'
+        },
+        {
+            x: """ + str(turns_data) + """,
+            y: """ + str([
+                sum(s['e2_storage'].values()) for s in stats
+            ]) + """,
+            name: '""" + empire2_name + """',
+            type: 'scatter'
+        }
+    ];
+
+    var storageLayout = {
+        title: 'Total Stored Resources',
+        xaxis: {title: 'Turn'},
+        yaxis: {title: 'Storage'},
+        paper_bgcolor: '#2a2a2a',
+        plot_bgcolor: '#1a1a1a',
+        font: {color: '#ccc'}
+    };
+
+    Plotly.newPlot('storageChart', storageData, storageLayout);
+    </script>
+    """
+
 
     # Buildings chart
     html += """
@@ -446,6 +632,12 @@ def create_charts(stats, empire1_name, empire2_name, turns):
     import webbrowser
     import os
     webbrowser.open('file://' + os.path.abspath('ai_test_charts.html'))
+def empire_storage_sum(empire):
+    total = {}
+    for p in empire.planets:
+        for res, val in p.storage.items():
+            total[res] = total.get(res, 0) + val
+    return total
 
 
 if __name__ == "__main__":
@@ -457,7 +649,7 @@ if __name__ == "__main__":
             turns = int(sys.argv[1])
         except:
             print("Usage: python longterm.py [turns]")
-            turns = 1000
+            turns = 100
     
     try:
         success = test_longterm_ai_gameplay(turns)
