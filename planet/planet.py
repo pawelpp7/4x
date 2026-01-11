@@ -42,7 +42,9 @@ class Planet:
         self.population_hub = PopulationHub()
         self.spaceport = None
         
-        # ✅ NOWE: maksymalna populacja (carrying capacity)
+        self.military_units = []
+        self.military_level = 5
+        
         self.max_population = 100.0  # bazowy cap
 
         self.building_limits = defaultdict(int)

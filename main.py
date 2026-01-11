@@ -44,6 +44,8 @@ TRANSPORT_CARGO_SELECT = 6
 MILITARY_RECRUIT_MENU = 7
 MILITARY_GARRISON_VIEW = 8
 
+
+
 LEFT_PANEL_W = 550
 
 # ============================================
@@ -180,6 +182,7 @@ def main():
                         overlay_mode = OVERLAY_PRODUCTION
                     elif event.key == pygame.K_6:
                         overlay_mode = OVERLAY_POPULATION
+                        
 
                     elif event.key == pygame.K_b and selected_hex:
                         build_menu_hex = selected_hex
@@ -191,6 +194,11 @@ def main():
                     elif event.key == pygame.K_t:
                         transport_source_planet = current_planet
                         current_view = TRANSPORT_TARGET_SELECT
+                        
+                    if event.key == pygame.K_m:
+                        current_view = MILITARY_RECRUIT_MENU
+                    if event.key == pygame.K_g:
+                        current_view = MILITARY_GARRISON_VIEW
 
                 # === BUILD MENU ===
                 elif current_view == BUILD_MENU:
@@ -381,7 +389,7 @@ def main():
                         # Taby
                         for category, rect in clickable_build_tabs:
                             if rect.collidepoint(mx, my):
-                                print(f"DEBUG: Clicked tab {category}")  # ✅ Debug
+                                print(f"DEBUG: Clicked tab {category}")  
                                 build_menu_state.category_filter = category
                                 build_menu_state.scroll = 0
                                 break
@@ -389,7 +397,7 @@ def main():
                         # Budynki
                         for building, rect in clickable_build_items:
                             if rect.collidepoint(mx, my):
-                                print(f"DEBUG: Clicked building {building.name} at {rect}")  # ✅ Debug
+                                print(f"DEBUG: Clicked building {building.name} at {rect}")  
                                 building.owner = empire
                                 success, msg = building.build(current_planet, build_menu_hex)
                                 
@@ -401,6 +409,24 @@ def main():
                                 current_view = PLANET_VIEW
                                 build_menu_state.scroll = 0
                                 break
+                            
+                if current_view == MILITARY_RECRUIT_MENU:
+                    from military.units import get_available_units
+
+                    available_units = get_available_units(current_planet.military_level)
+
+                    for i, unit_cls in enumerate(available_units):
+                        rect = pygame.Rect(50, 120 + i * 60, 300, 50)
+
+                        if rect.collidepoint(mx,my):
+                            unit = unit_cls(owner=current_planet.owner)
+
+                            # koszt (jeśli masz)
+                            if current_planet.resources["metal"] >= unit.cost:
+                                current_planet.resources["metal"] -= unit.cost
+                                current_planet.military_units.append(unit)
+
+                                print(f"Zrekrutowano {unit.name}")
         # ================= TICK =================
         now = pygame.time.get_ticks()
         if not paused and now - last_tick >= TICK_MS:
@@ -545,6 +571,7 @@ def main():
 
         # ✅ DODAJ nowe widoki (po istniejących elif):
         elif current_view == MILITARY_RECRUIT_MENU:
+            print("mill rec")
             draw_planet(
                 screen,
                 current_planet,
@@ -561,6 +588,7 @@ def main():
             )
 
         elif current_view == MILITARY_GARRISON_VIEW:
+            print("mill gar")
             draw_planet(
                 screen,
                 current_planet,
@@ -574,6 +602,14 @@ def main():
                 current_planet,
                 font
             )
+            draw_military_panel(
+                screen,
+                current_planet,
+                font,
+                400,
+                400
+            )
+
 
         elif current_view == BUILD_MENU:
             # Tło planety (opcjonalne)

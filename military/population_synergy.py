@@ -57,6 +57,7 @@ def calculate_population_bonuses(planet):
             "attack": 1.0,
             "defense": 1.0,
             "health": 1.0,
+            "morale": 1.0,
             "speed": 1.0,
             "upkeep": 1.0
         }
@@ -67,6 +68,7 @@ def calculate_population_bonuses(planet):
         "defense": 1.0,
         "health": 1.0,
         "speed": 1.0,
+        "morale": 1.0,
         "upkeep": 1.0
     }
     
@@ -105,6 +107,7 @@ def apply_population_bonuses_to_unit(unit, planet):
     unit.stats.attack *= bonuses["attack"]
     unit.stats.defense *= bonuses["defense"]
     unit.stats.health *= bonuses["health"]
+    unit.stats.morale *= bonuses["morale"]
     unit.stats.speed *= int(bonuses["speed"])  # Speed to int
     unit.stats.upkeep *= bonuses["upkeep"]
     
@@ -144,6 +147,7 @@ def get_population_bonus_summary(planet):
             "attack": "ATK",
             "defense": "DEF",
             "health": "HP",
+            "morale": "morale",
             "speed": "SPD",
             "upkeep": "Upkeep"
         }[stat]

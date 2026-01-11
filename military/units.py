@@ -17,6 +17,7 @@ class UnitStats:
     defense: float
     health: float
     speed: int
+    morale:float
     upkeep: float
 
 class MilitaryUnit:
@@ -368,7 +369,7 @@ def get_available_units(planet):
     available = []
     
     # Sprawdź poziom Military
-    military_level = 0
+    military_level = 3
     if hasattr(planet, 'strategic_manager'):
         military_res = planet.strategic_manager.resources.get('military')
         if military_res:

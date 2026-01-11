@@ -29,7 +29,7 @@ def draw_military_panel(screen, planet, font, x, y, width=500):
     
     manager = planet.military_manager
     
-    panel_height = 400
+    panel_height = 240
     pygame.draw.rect(screen, (25, 30, 40), (x, y, width, panel_height))
     pygame.draw.rect(screen, (100, 80, 80), (x, y, width, panel_height), 2)
     
@@ -222,9 +222,9 @@ def draw_military_production_menu(screen, planet, empire, font):
     
     if not available:
         # Sprawdź poziom Military
-        military_level = 0
+        military_level = 3
         if hasattr(planet, 'strategic_manager'):
-            military_res = planet.strategic_manager.resources.get('military')
+            military_res = planet.military_level()
             if military_res:
                 military_level = military_res.level
         

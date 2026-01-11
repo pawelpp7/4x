@@ -47,7 +47,7 @@ class Empire:
             for t in self.transport_manager.transports:
                 source_sys, source_orbit = t.source.get_location(galaxy)
                 target_sys, target_orbit = t.target.get_location(galaxy)
-                print(f"  S{source_orbit}→S{target_orbit}: {t.time_remaining}/{t.time_total} turns")
+               # print(f"  S{source_orbit}→S{target_orbit}: {t.time_remaining}/{t.time_total} turns")
         
         for p in self.planets:
             system, orbit = p.get_location(galaxy)
