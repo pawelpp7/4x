@@ -77,7 +77,7 @@ class Hex:
         prod = {}
 
         for b in self.buildings_small:
-            base = b.produce(self)
+            base = b.produce(self,population)
 
             for res, val in base.items():
                 bonus = population.bonus(res)

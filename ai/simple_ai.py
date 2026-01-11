@@ -12,22 +12,27 @@ class SimpleAI:
         self.colonization_cooldown = 0
 
     def tick(self):
-        """Główna pętla AI - wykonuje akcje co kilka ticków"""
+        """Główna pętla AI - z transportem"""
         self.cooldown -= 1
         self.colonization_cooldown -= 1
         
         if self.cooldown > 0:
             return
         
-        self.cooldown = 5  # szybsze reakcje
+        self.cooldown = 5
 
         # 1️⃣ PRIORYTET: KOLONIZACJA
         if self.colonization_cooldown <= 0 and len(self.empire.planets) < 15:
             if self.try_colonize():
-                self.colonization_cooldown = 10  # krótszy cooldown
+                self.colonization_cooldown = 10
                 return
 
-        # 2️⃣ Rozwój istniejących planet
+        # ✅ 2️⃣ Transport zasobów (co 3 tury)
+        if self.galaxy.turn % 3 == 0:
+            if self.try_transport_resources():
+                return
+
+        # 3️⃣ Rozwój istniejących planet
         if self.empire.planets:
             planet = self.pick_development_planet()
             if planet:
@@ -276,3 +281,50 @@ class SimpleAI:
                 return chem
         
         return None
+    
+    def try_transport_resources(self):
+        """AI próbuje wyrównać zasoby między planetami"""
+        if len(self.empire.planets) < 2:
+            return False
+        
+        resource_planets = {}
+        
+        for planet in self.empire.planets:
+            if not planet.colonized:
+                continue
+                
+            for res, amount in planet.storage.items():
+                if res not in resource_planets:
+                    resource_planets[res] = []
+                resource_planets[res].append((planet, amount))
+        
+        from core.config import BASIC_RESOURCES
+        
+        for res in BASIC_RESOURCES:
+            if res not in resource_planets:
+                continue
+                
+            planets = resource_planets[res]
+            if len(planets) < 2:
+                continue
+                
+            planets.sort(key=lambda x: x[1], reverse=True)
+            
+            richest_planet, richest_amount = planets[0]
+            poorest_planet, poorest_amount = planets[-1]
+            
+            if richest_amount > 150 and (richest_amount - poorest_amount) > 100:
+                cargo = {res: 50.0}
+                
+                success, msg = self.empire.create_transport(
+                    richest_planet,
+                    poorest_planet,
+                    cargo,
+                    "resources"
+                )
+                
+                if success:
+                    print(f"[AI {self.empire.name}] Transport: {msg}")
+                    return True
+        
+        return False

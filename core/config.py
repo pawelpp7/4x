@@ -55,22 +55,22 @@ ADVANCED_RESOURCES = [
 # Toxic → Military (harsh conditions breed warriors)
 
 STRATEGIC_RESOURCES = [
-    "authority",  # TemperatureSource - control, government
-    "faith",      # HeightSource - religion, spirituality
-    "culture",    # LifeSource - art, influence
-    "science",    # ColdSource - research, technology
-    "arcane",     # ErosionSource - magic, chaos
-    "military",   # ToxicSource - warfare, defense
+    "authority", 
+    "faith",      
+    "culture",   
+    "science",    
+    "arcane",     
+    "military",  
 ]
 
 
 # Mapowanie źródeł planet → strategiczne zasoby
 SOURCE_TO_STRATEGIC = {
-    "temperature": "authority",
+    "temperature": "arcane",
     "height": "faith",
     "life": "culture",
     "cold": "science",
-    "erosion": "arcane",
+    "erosion": "authority",
     "toxic": "military",
 }
 

@@ -29,8 +29,6 @@ class Building:
         
 
         for r, v in self.cost.items():
-            print(r)
-            print(v)
             if planet.storage.get(r, 0) < v:
                 return False
 
@@ -51,10 +49,11 @@ class Building:
         # 1️⃣ Sprawdzenie czy można zbudować
         if not hex.can_build(self, planet):
             return False, "Cannot build on this hex"
-        
+        if not self.owner:
+            return False, "Building has no owner"
         if not self.can_afford(planet):
             return False, f"Cannot afford {self.name}"
-        
+
         # 2️⃣ Płatność
         self.pay_cost(planet)
         

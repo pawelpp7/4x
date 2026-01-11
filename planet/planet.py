@@ -14,7 +14,7 @@ from planet.sources import (
     ToxicSource,
 )
 from planet.resources import ALL_RESOURCES, calculate_resources
-
+from military.units import PlanetMilitaryManager
 from buildings.constants import BUILDING_SMALL, BUILDING_PLANET_UNIQUE
 from core.rng import uniform, choice
 from collections import defaultdict
@@ -70,6 +70,8 @@ class Planet:
         self._apply_sources()
         self._calculate_resources()
         self._determine_primary_resource()
+        self.military_manager = PlanetMilitaryManager(self)
+        self.production_speed = 1.0
 
     # ------------------------------------------------------------------
     # SOURCES / HEXES
@@ -257,6 +259,9 @@ class Planet:
 
         for res, amount in production.items():
             self.storage[res] = self.storage.get(res, 0.0) + amount
+        
+        if self.colonized and self.population.size > 0:
+            self.military_manager.tick()
 
         # ⚖️ ZBALANSOWANY WZROST POPULACJI
         
