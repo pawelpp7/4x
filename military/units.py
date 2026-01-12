@@ -28,6 +28,7 @@ class MilitaryUnit:
         self.stats = stats
         self.owner = owner
         self.current_health = stats.health
+        self.current_morale = stats.morale
         self.location = None
         self.experience = 0
         self.status = "idle"
@@ -41,6 +42,7 @@ class MilitaryUnit:
     def heal(self, amount):
         """Leczy jednostkę"""
         self.current_health = min(self.stats.health, self.current_health + amount)
+        self.current_morale = min(self.stats.morale, (self.current_morale*self.current_health + amount)/self.stats.health)
         
     def add_experience(self, xp):
         """Dodaje doświadczenie"""
@@ -75,6 +77,7 @@ class Infantry(MilitaryUnit):
             attack=10.0,
             defense=8.0,
             health=50.0,
+            morale=1.0,
             speed=2,
             upkeep=0.5
         )
@@ -94,6 +97,7 @@ class Tank(MilitaryUnit):
             defense=20.0,
             health=100.0,
             speed=1,
+            morale=1.0,
             upkeep=1.5
         )
         super().__init__("Tank", stats, owner)
@@ -111,6 +115,7 @@ class Fighter(MilitaryUnit):
             attack=20.0,
             defense=5.0,
             health=40.0,
+            morale=1.0,
             speed=5,
             upkeep=1.0
         )
@@ -129,6 +134,7 @@ class Frigate(MilitaryUnit):
             attack=30.0,
             defense=15.0,
             health=120.0,
+            morale=1.0,
             speed=3,
             upkeep=2.0
         )
@@ -150,6 +156,7 @@ class Destroyer(MilitaryUnit):
             defense=35.0,
             health=250.0,
             speed=2,
+            morale=1.0,
             upkeep=4.0
         )
         super().__init__("Destroyer", stats, owner)
@@ -198,13 +205,25 @@ class ProductionQueue:
         if current["progress"] >= current["time_total"]:
             unit = current["unit_class"](owner=planet.owner)
             unit.location = (planet, None)
+            # ✅ NOWE - Aplikuj bonusy populacji
+            from military.population_synergy import apply_population_bonuses_to_unit
+            apply_population_bonuses_to_unit(unit, planet)
             
-            # Aplikuj bonusy populacji
-            try:
-                from military.population_synergy import apply_population_bonuses_to_unit
-                apply_population_bonuses_to_unit(unit, planet)
-            except ImportError:
-                pass  # Jeszcze nie zaimplementowane
+            # ✅ NOWE - Aplikuj bonusy z budynków
+            if hasattr(planet, 'unit_stat_bonus'):
+                unit.stats.attack *= planet.unit_stat_bonus
+                unit.stats.defense *= planet.unit_stat_bonus
+                unit.stats.health *= planet.unit_stat_bonus
+                unit.current_health = unit.stats.health
+            
+            # ✅ NOWE - Starting experience z budynków
+            if hasattr(planet, 'starting_experience'):
+                unit.experience = planet.starting_experience
+            
+            # ✅ NOWE - Starting morale bonus
+            if hasattr(planet, 'starting_morale_bonus'):
+                unit.stats.morale += planet.starting_morale_bonus
+                unit.stats.morale = min(1.5, unit.stats.morale)
             
             # Aplikuj doktrynę
             if current["doctrine"]:
@@ -303,11 +322,17 @@ class PlanetMilitaryManager:
             
         # Upkeep jednostek
         total_upkeep = sum(u.stats.upkeep for u in self.garrison)
-        self.planet.owner.energy -= total_upkeep
+        self.planet.owner.cash -= total_upkeep
         
         # Heal jednostki w garnizonie (10% hp per turn)
         for unit in self.garrison:
-            unit.heal(unit.stats.health * 0.1)
+            unit.heal(unit.stats.health * 0.01)
+        
+        morale_floor = getattr(self.planet, 'morale_floor', 0.0)
+
+        for unit in self.garrison:
+            unit.stats.morale = max(morale_floor, unit.stats.morale)
+
             
     def get_garrison_strength(self):
         """Zwraca łączną siłę garnizonu"""
@@ -350,6 +375,19 @@ class EmpireMilitaryManager:
                 count += len(planet.military_manager.garrison)
                 
         return count
+
+    def get_attack_breakdown(self):
+        exp_bonus = 1.0 + (self.experience / 100) * 0.5
+        health_factor = self.current_health / self.stats.health
+        raw_damage = self.stats.attack * exp_bonus * health_factor
+
+        return {
+            "base_attack": self.stats.attack,
+            "experience": self.experience,
+            "exp_bonus": exp_bonus,
+            "health_factor": health_factor,
+            "raw_damage": raw_damage
+        }
 
 
 # ============================================

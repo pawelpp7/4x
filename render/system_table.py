@@ -7,8 +7,8 @@ def draw_system_table(screen, system, font, sort_key="pop"):
 
     if sort_key == "pop":
         planets.sort(key=lambda p: p.population.size if p.population else 0, reverse=True)
-    elif sort_key == "energy":
-        planets.sort(key=lambda p: p.energy_delta() if p.colonized else 0, reverse=True)
+    elif sort_key == "cash":
+        planets.sort(key=lambda p: p.cash_delta() if p.colonized else 0, reverse=True)
     elif sort_key == "res":
         planets.sort(key=lambda p: sum(p.storage.values()) if p.colonized else 0, reverse=True)
 
@@ -19,12 +19,12 @@ def draw_system_table(screen, system, font, sort_key="pop"):
     for i, p in enumerate(planets):
         # bezpieczne pobieranie wartości dla nieskolonizowanych planet
         pop = p.population.size if p.population else 0.0
-        energy = p.energy_delta() if p.colonized and p.population else 0.0
+        cash = p.cash_delta() if p.colonized and p.population else 0.0
         
         line = (
             f"{i:^2} "
             f"{pop:5.1f} "
-            f"{energy:+5.2f} "
+            f"{cash:+5.2f} "
             f"{p.storage.get('energy', 0):2.0f} "
             f"{p.storage.get('minerals', 0):2.0f} "
             f"{p.storage.get('organics', 0):2.0f} "

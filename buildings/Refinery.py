@@ -10,7 +10,7 @@ from core.config import ENVIRONMENT_WEIGHTS
 
 class Refinery(Building):
     workers_required = 0.8
-    energy_cost = 0.6
+    cash_cost = 0.6
 
     def __init__(self, name, inputs, output, extreme_bonus_type=None):
         """

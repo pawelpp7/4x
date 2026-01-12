@@ -1,59 +1,260 @@
+"""
+ai/simple_ai.py - FIXED VERSION
+AI z pełną obsługą systemu wojskowego
+"""
+
 import random
 from buildings.registry import BUILDINGS
 from buildings.PopulationHub import PopulationHub
 from buildings.SpacePort import SpacePort
 from buildings.Mining import MiningComplex
+from military.PlanetaryInvasion import PlanetaryInvasion
+from military.buildings import Barracks, TrainingGrounds
 
 class SimpleAI:
     def __init__(self, empire, galaxy):
         self.empire = empire
         self.galaxy = galaxy
         self.cooldown = 0
-        self.colonization_cooldown = 0
+        self.colonization_cooldown = 1
+        self.military_cooldown = 1
+        self.attack_cooldown = 1
 
     def tick(self):
-        """Główna pętla AI - z transportem"""
+        """Główna pętla AI - z military"""
         self.cooldown -= 1
         self.colonization_cooldown -= 1
-        
+        self.military_cooldown -= 1
+        self.attack_cooldown -= 1
+    
         if self.cooldown > 0:
             return
         
-        self.cooldown = 5
-
-        # 1️⃣ PRIORYTET: KOLONIZACJA
-        if self.colonization_cooldown <= 0 and len(self.empire.planets) < 15:
-            if self.try_colonize():
-                self.colonization_cooldown = 10
-                return
-
-        # ✅ 2️⃣ Transport zasobów (co 3 tury)
-        if self.galaxy.turn % 3 == 0:
-            if self.try_transport_resources():
-                return
-
-        # 3️⃣ Rozwój istniejących planet
+        self.cooldown = 1
+        
+        
         if self.empire.planets:
             planet = self.pick_development_planet()
             if planet:
                 self.develop_planet(planet)
-
-    def try_colonize(self):
-        """Próbuje skolonizować nową planetę"""
+            
+        if self.colonization_cooldown <= 0 :
+            if self.try_colonize():
+                self.colonization_cooldown = 1
+                return
         
-        if not self.empire.planets:
+        if self.try_transport_resources():
+            return
+        if self.military_cooldown <= 0:
+            if self.handle_military():
+                self.military_cooldown = 1
+                return
+        if self.attack_cooldown <= 0:
+            self.try_attack()
+            self.attack_cooldown = 1
+        
+
+
+    # ============================================
+    # MILITARY SYSTEM
+    # ============================================
+    
+    def handle_military(self):
+        """Główna logika wojskowa AI"""
+        
+        # 1️⃣ Wybierz planetę do rozwoju wojskowego
+        planet = self.pick_military_planet()
+        if not planet:
             return False
         
-        # 1️⃣ Znajdź valid source planets
-        valid_sources = []
+        # 2️⃣ Buduj infrastrukturę wojskową
+        if planet.military_level < 2:  # Priorytet: buduj Barracks
+            if self.try_build_military_building(planet):
+                print(f"[AI {self.empire.name}] Built military building on {id(planet)}")
+                return True
+        
+        # 3️⃣ Rekrutuj jednostki
+        garrison_size = len(planet.military_manager.garrison)
+        max_garrison = 5 + int(planet.military_level * 2)  # Większy level = więcej jednostek
+        
+        if garrison_size < max_garrison:
+            if self.try_recruit_unit(planet):
+                print(f"[AI {self.empire.name}] Recruiting unit on planet {id(planet)}")
+                return True
+        
+        return False
+    
+    def pick_military_planet(self):
+        """Wybiera najlepszą planetę do rozwoju wojskowego"""
+        if not self.empire.planets:
+            return None
+        
+        candidates = []
+        
         for p in self.empire.planets:
             if not p.colonized or not p.population:
                 continue
             
+            # Score: populacja + military level + garrison
+            score = (
+                p.population.size * 2 +
+                p.military_level * 10 +
+                len(p.military_manager.garrison) * 5
+            )
+            
+            # Bonus dla planet z dużymi zasobami
+            if p.storage.get('alloys', 0) > 50:
+                score += 20
+            
+            candidates.append((p, score))
+        
+        if not candidates:
+            return None
+        
+        # Wybierz planetę z najwyższym score (główna baza militarna)
+        candidates.sort(key=lambda x: -x[1])
+        return candidates[0][0]
+    
+    def try_build_military_building(self, planet):
+        """Próbuje zbudować budynek wojskowy"""
+        
+        # Znajdź wolny hex
+        free_hexes = [
+            h for h in planet.hex_map.hexes
+            if not h.is_blocked() or len(h.buildings_small) < planet.hex_cap
+        ]
+        
+        if not free_hexes:
+            return False
+        
+        hex = random.choice(free_hexes)
+        
+        # Wybierz budynek
+        building = None
+        if planet.military_level < 1:
+            building = Barracks()
+        elif planet.military_level < 2:
+            building = TrainingGrounds()
+        else:
+            return False
+        
+        if not building.can_afford(planet):
+            return False
+        
+        building.owner = self.empire
+        success, msg = building.build(planet, hex)
+        
+        if success:
+            print(f"[AI {self.empire.name}] {msg}")
+            return True
+        
+        return False
+    
+    def try_recruit_unit(self, planet):
+        """Próbuje zrekrutować jednostkę"""
+        from military.units import get_available_units
+        
+        mm = planet.military_manager
+        
+        # Pobierz dostępne jednostki
+        available = get_available_units(planet.military_level)
+        
+        if not available:
+            return False
+        
+        # Wybierz jednostkę na podstawie military level
+        if planet.military_level < 2:
+            # Tylko Infantry
+            unit_class = available[0]  # Infantry
+        elif planet.military_level < 3:
+            # Infantry lub Tank
+            unit_class = random.choice(available[:2])
+        else:
+            # Wszystkie dostępne
+            unit_class = random.choice(available)
+        
+        # Sprawdź czy możemy produkować
+        can_produce, msg = mm.can_produce(unit_class)
+        
+        if not can_produce:
+            return False
+        
+        # Rozpocznij produkcję
+        success, msg = mm.start_production(unit_class, doctrine=None)
+        
+        if success:
+            print(f"[AI {self.empire.name}] {msg}")
+            return True
+        
+        return False
+    
+    
+    def try_attack(self):
+        """Próbuje zaatakować wrogą planetę"""
+        if not self.empire.planets:
+            return
+        
+        # Znajdź swoją planetę z największą armią
+        source_planet = max(
+            self.empire.planets,
+            key=lambda p: len(p.military_manager.garrison)
+        )
+        
+        garrison = source_planet.military_manager.garrison
+        
+        # Atakuj tylko jeśli masz ≥3 jednostki
+        if len(garrison) < 3:
+            return
+        
+        # Znajdź wrogą planetę
+        enemy_planet = self.find_enemy_planet()
+        if not enemy_planet:
+            return
+        
+        # Wyślij połowę armii
+        attack_force = garrison[:len(garrison)//2]
+        
+        print(f"[AI {self.empire.name}] Launching invasion on enemy planet!")
+        print(f"  Attack force: {len(attack_force)} units")
+        
+        # Usuń z garnizonu
+        for unit in attack_force:
+            garrison.remove(unit)
+        
+
+        invasion = PlanetaryInvasion(self.empire, enemy_planet, attack_force)
+        
+        # Dodaj do gry
+        if hasattr(self.galaxy, 'active_invasions'):
+            self.galaxy.active_invasions.append(invasion)
+    
+    def find_enemy_planet(self):
+        """Znajduje wrogą planetę do ataku"""
+        for entry in self.galaxy.systems:
+            for planet in entry["system"].planets:
+                if planet.owner and planet.owner != self.empire:
+                    return planet
+        return None
+
+    # ============================================
+    # COLONIZATION SYSTEM
+    # ============================================
+    
+    def try_colonize(self):
+        """Próbuje skolonizować nową planetę"""
+        
+        
+        # 1️⃣ Znajdź valid source planets
+        valid_sources = []
+        for p in self.empire.planets:
+            if not p.colonized or not p.population or p.population.size <= 0:
+                continue
+
             # Sprawdź zasoby dla SpacePort (energy=10, minerals=5)
-            if (p.storage.get('energy', 0) >= 12 and 
-                p.storage.get('minerals', 0) >= 7 and
-                p.population.size >= 1.5):
+            if (p.storage.get('energy', 0) >= 8 and 
+                p.storage.get('minerals', 0) >= 5 and
+                p.population.size >= 1.0):
+
                 valid_sources.append(p)
         
         if not valid_sources:
@@ -74,7 +275,7 @@ class SimpleAI:
             None
         )
         if not free_hex:
-            return False
+            free_hex = random.choice(target.hex_map.hexes)
         
         # 4️⃣ Zbuduj SpacePort
         spaceport = SpacePort()
@@ -96,25 +297,28 @@ class SimpleAI:
         # Znajdź system source_planet
         source_system = None
         for entry in self.galaxy.systems:
-            if source_planet in entry["system"].planets:
+            if any(id(p) == id(source_planet) for p in entry["system"].planets):
                 source_system = entry
                 break
+
         
         if not source_system:
+            print("[AI] Source system not found for colonization")
             return None
+
         
         candidates = []
         
         # 1️⃣ Planety w tym samym systemie
         for p in source_system["system"].planets:
-            if not p.colonized and p != source_planet:
-                score = self.evaluate_planet_resources(p) * 2  # bonus
+            if  p.colonization_state == "none" and p != source_planet:
+                score = self.evaluate_planet_resources(p) * 2
                 candidates.append((p, score))
         
         # 2️⃣ Planety w sąsiednich systemach
         for neighbor in source_system["links"]:
             for p in neighbor["system"].planets:
-                if not p.colonized:
+                if  p.colonization_state == "none":
                     score = self.evaluate_planet_resources(p)
                     candidates.append((p, score))
         
@@ -134,6 +338,10 @@ class SimpleAI:
             total += sum(h.resources.values())
         return total
 
+    # ============================================
+    # DEVELOPMENT SYSTEM
+    # ============================================
+    
     def pick_development_planet(self):
         """Wybiera planetę do rozwoju"""
         if not self.empire.planets:
@@ -212,18 +420,28 @@ class SimpleAI:
         P = planet.population.size
         B = planet.total_buildings()
         
-        # 1️⃣ Population Hub - tylko gdy bardzo mało pop
+        # 1️⃣ Military buildings - priorytet na początku gry
+        if planet.military_level < 1 and planet.population.size > 2:
+            try:
+
+                barracks = Barracks()
+                if hex.can_build(barracks, planet) and barracks.can_afford(planet):
+                    return barracks
+            except ImportError:
+                pass
+        
+        # 2️⃣ Population Hub - tylko gdy bardzo mało pop
         if B > 5 and P < (B * 0.15):
             hub = PopulationHub()
             if hex.can_build(hub, planet) and hub.can_afford(planet):
                 return hub
         
-        # 2️⃣ Kopalnie - główny priorytet
+        # 3️⃣ Kopalnie - główny priorytet
         if hex.resources:
             best_res = max(hex.resources, key=hex.resources.get)
             best_val = hex.resources[best_res]
             
-            if best_val > 0.15:  # jeszcze niższy próg
+            if best_val > 0.15:
                 mine_mapping = {
                     "energy": "Energy Collector",
                     "gases": "Gas Collector",
@@ -241,13 +459,13 @@ class SimpleAI:
                         if hex.can_build(mine, planet) and mine.can_afford(planet):
                             return mine
         
-        # 3️⃣ Rafinerie
+        # 4️⃣ Rafinerie
         if B > 3:
             refinery = self.try_pick_refinery(planet, hex)
             if refinery:
                 return refinery
         
-        # 4️⃣ Population Hub - fallback
+        # 5️⃣ Population Hub - fallback
         hub = PopulationHub()
         if hex.can_build(hub, planet) and hub.can_afford(planet):
             return hub
@@ -264,23 +482,34 @@ class SimpleAI:
                     res = b.resource
                     production[res] = production.get(res, 0) + 1
         
+        # Wszystkie możliwe rafinerie
+        refineries = []
+        
         # Smelter
-        if (production.get('minerals', 0) >= 2 and 
-            production.get('energy', 0) >= 1):
+        if production.get('minerals', 0) >= 1 and production.get('energy', 0) >= 1:
             from buildings.Refinery import Smelter
-            smelter = Smelter()
-            if hex.can_build(smelter, planet) and smelter.can_afford(planet):
-                return smelter
+            refineries.append(Smelter())
         
         # Chemical Plant
-        if (production.get('gases', 0) >= 1 and 
-            production.get('water', 0) >= 1):
+        if production.get('gases', 0) >= 1 and production.get('water', 0) >= 1:
             from buildings.Refinery import ChemicalPlant
-            chem = ChemicalPlant()
-            if hex.can_build(chem, planet) and chem.can_afford(planet):
-                return chem
+            refineries.append(ChemicalPlant())
+        
+        # Bioreactor
+        if production.get('organics', 0) >= 1 and production.get('water', 0) >= 1:
+            from buildings.Refinery import Bioreactor
+            refineries.append(Bioreactor())
+        
+        # Spróbuj każdej
+        for refinery in refineries:
+            if hex.can_build(refinery, planet) and refinery.can_afford(planet):
+                return refinery
         
         return None
+    
+    # ============================================
+    # TRANSPORT SYSTEM
+    # ============================================
     
     def try_transport_resources(self):
         """AI próbuje wyrównać zasoby między planetami"""

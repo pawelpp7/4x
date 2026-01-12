@@ -13,7 +13,7 @@ class EmpireSpacePort(Building):
         )
 
     def produce(self, hex, population):
-        return {res: 1.0 for res in BASIC_RESOURCES}
+        return {res: 10.0 for res in BASIC_RESOURCES}
 
     def build(self, planet, hex):
         if hex.is_blocked():
@@ -28,7 +28,7 @@ class EmpireSpacePort(Building):
 
         # inicjalizacja kolonii
         planet.colonized = True
-        planet.population = Population(size=5.0)
+        planet.population = Population(size=10.0)
         planet.population.planet = planet
         planet.owner = self.owner
         self.owner.planets.append(planet)

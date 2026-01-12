@@ -67,7 +67,7 @@ class Hex:
         return len(self.buildings_small) < max(planet.hex_cap,5)
 
     def add_building(self, building):
-        if building.category == BUILDING_MAJOR:
+        if building.category != BUILDING_SMALL:
             self.building_major = building
         else:
             self.buildings_small.append(building)

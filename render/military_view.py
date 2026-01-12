@@ -100,7 +100,7 @@ def draw_military_panel(screen, planet, font, x, y, width=500):
     
     # === UPKEEP ===
     upkeep = sum(u.stats.upkeep for u in manager.garrison)
-    upkeep_text = f"Total Upkeep: {upkeep:.1f} energy/turn"
+    upkeep_text = f"Total Upkeep: {upkeep:.1f} cash/turn"
     upkeep_color = (220, 180, 180) if upkeep < 10 else (220, 120, 120)
     screen.blit(
         font.render(upkeep_text, True, upkeep_color),

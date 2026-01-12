@@ -3,6 +3,7 @@ from buildings.PopulationHub import PopulationHub
 from buildings.SpacePort import SpacePort
 from buildings.Mining import MiningComplex
 from core.config import ADVANCED_RESOURCES
+from military.buildings import MILITARY_BUILDINGS
 
 BUILDINGS = {
     # Infrastructure
@@ -24,4 +25,6 @@ BUILDINGS = {
     "Polymer Factory":  lambda: Refinery.PolymerFactory(),    # organics + chemicals → plastics
     "Electronics Fab":  lambda: Refinery.ElectronicsFab(),    # minerals + rares + energy → electronics
     "Fuel Refinery":    lambda: Refinery.FuelRefinery(),      # organics + chemicals + gases → fuel
+    
+    **MILITARY_BUILDINGS,
 }

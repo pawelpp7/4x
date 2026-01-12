@@ -677,58 +677,58 @@ def main():
                 font
             )
 
-        # === ENERGY PANEL ===
+        # === cash PANEL ===
         font_small = pygame.font.SysFont(None, 18)
         font_big = pygame.font.SysFont(None, 24)
-        energy_panel_x = 10+LEFT_PANEL_W 
-        energy_panel_y = 10
-        energy_panel_w = 250
-        energy_panel_h = 80
+        cash_panel_x = 10+LEFT_PANEL_W 
+        cash_panel_y = 10
+        cash_panel_w = 250
+        cash_panel_h = 80
         
-        pygame.draw.rect(screen, (20, 25, 35), (energy_panel_x, energy_panel_y, energy_panel_w, energy_panel_h))
-        pygame.draw.rect(screen, (60, 80, 100), (energy_panel_x, energy_panel_y, energy_panel_w, energy_panel_h), 2)
+        pygame.draw.rect(screen, (20, 25, 35), (cash_panel_x,cash_panel_y, cash_panel_w, cash_panel_h))
+        pygame.draw.rect(screen, (60, 80, 100), (cash_panel_x, cash_panel_y, cash_panel_w, cash_panel_h), 2)
         
         screen.blit(
-            font_big.render("ENERGY", True, (200, 220, 240)),
-            (energy_panel_x + 10, energy_panel_y + 8)
+            font_big.render("CASH", True, (200, 220, 240)),
+            (cash_panel_x + 10, cash_panel_y + 8)
         )
         
-        energy_value = empire.energy
-        if energy_value >= 50:
-            energy_color = (80, 220, 120)
-        elif energy_value >= 0:
-            energy_color = (220, 200, 80)
+        cash_value = empire.cash
+        if cash_value >= 50:
+            cash_color = (80, 220, 120)
+        elif cash_value >= 0:
+            cash_color = (220, 200, 80)
         else:
-            energy_color = (220, 80, 80)
+            cash_color = (220, 80, 80)
 
         screen.blit(
-            font_big.render(f"{energy_value:.1f}", True, energy_color),
-            (energy_panel_x + 15, energy_panel_y + 32)
+            font_big.render(f"{cash_value:.1f}", True, cash_color),
+            (cash_panel_x + 15, cash_panel_y + 32)
         )
         
-        delta = empire.energy_last
+        delta = empire.cash_last
         delta_text = f"{delta:+.2f}/turn"
         delta_color = (120, 220, 120) if delta >= 0 else (220, 120, 120)
 
         screen.blit(
             font_small.render(delta_text, True, delta_color),
-            (energy_panel_x + 15, energy_panel_y + 56)
+            (cash_panel_x + 15, cash_panel_y + 56)
         )
         
         arrow = "▲" if delta > 0 else "▼" if delta < 0 else "="
         screen.blit(
             font_big.render(arrow, True, delta_color),
-            (energy_panel_x + 110, energy_panel_y + 50)
+            (cash_panel_x + 110, cash_panel_y + 50)
         )
         
-        bar_x = energy_panel_x + 140
-        bar_y = energy_panel_y + 35
+        bar_x = cash_panel_x + 140
+        bar_y = cash_panel_y + 35
         bar_w = 90
         bar_h = 12
         
         pygame.draw.rect(screen, (40, 40, 50), (bar_x, bar_y, bar_w, bar_h))
         
-        fill_ratio = min(1.0, max(0.0, energy_value / 200.0))
+        fill_ratio = min(1.0, max(0.0, cash_value / 200.0))
         fill_w = int(bar_w * fill_ratio)
         
         if fill_ratio > 0.5:
@@ -744,7 +744,7 @@ def main():
         planets_text = f"Planets: {len(empire.planets)}"
         screen.blit(
             font_small.render(planets_text, True, (180, 180, 200)),
-            (energy_panel_x + 140, energy_panel_y + 55)
+            (cash_panel_x + 140, cash_panel_y + 55)
         )
         
         if paused:
@@ -753,7 +753,7 @@ def main():
                 pause_text,
                 (WIDTH // 2 - pause_text.get_width() // 2, 20)
             )
-
+ 
         pygame.display.flip()
         clock.tick(60)
 
@@ -771,11 +771,11 @@ def get_available_buildings(planet, hex):
     from buildings.registry import BUILDINGS
     
     available = []
-    
+
     for name, factory in BUILDINGS.items():
         building = factory()
         
-        if hex.can_build(building, planet):
+        if planet.can_build(building):
             available.append(building)
     
     return available

@@ -33,7 +33,7 @@ def test_longterm_ai_gameplay(turns=100):
     
     # === SIMULATION ===
     print("\n--- RUNNING SIMULATION ---")
-    print("Turn | E1 Planets | E1 Pop | E1 Energy | E2 Planets | E2 Pop | E2 Energy")
+    print("Turn | E1 Planets | E1 Pop | E1 cash | E2 Planets | E2 Pop | E2 cash")
     print("-" * 70)
     
     stats = []
@@ -54,13 +54,13 @@ def test_longterm_ai_gameplay(turns=100):
             'turn': turn,
             'e1_planets': len(empire1.planets),
             'e1_pop': e1_pop,
-            'e1_energy': empire1.energy,
+            'e1_cash': empire1.cash,
             'e1_buildings': e1_buildings,
             'e1_storage': e1_storage,
 
             'e2_planets': len(empire2.planets),
             'e2_pop': e2_pop,
-            'e2_energy': empire2.energy,
+            'e2_cash': empire2.cash,
             'e2_buildings': e2_buildings,
             'e2_storage': e2_storage,
         })
@@ -73,10 +73,10 @@ def test_longterm_ai_gameplay(turns=100):
                 f"{turn:4d} | "
                 f"{len(empire1.planets):10d} | "
                 f"{e1_pop:6.1f} | "
-                f"{empire1.energy:9.1f} | "
+                f"{empire1.cash:9.1f} | "
                 f"{len(empire2.planets):10d} | "
                 f"{e2_pop:6.1f} | "
-                f"{empire2.energy:9.1f}"
+                f"{empire2.cash:9.1f}"
             )
     
     # === FINAL STATS ===
@@ -89,13 +89,13 @@ def test_longterm_ai_gameplay(turns=100):
     print(f"\n{empire1.name}:")
     print(f"  Planets: {final['e1_planets']}")
     print(f"  Total Population: {final['e1_pop']:.1f}")
-    print(f"  Energy: {final['e1_energy']:.1f}")
+    print(f"  cash: {final['e1_cash']:.1f}")
     print(f"  Buildings: {final['e1_buildings']}")
     
     print(f"\n{empire2.name}:")
     print(f"  Planets: {final['e2_planets']}")
     print(f"  Total Population: {final['e2_pop']:.1f}")
-    print(f"  Energy: {final['e2_energy']:.1f}")
+    print(f"  cash: {final['e2_cash']:.1f}")
     print(f"  Buildings: {final['e2_buildings']}")
     
     # === VALIDATION ===
@@ -139,11 +139,11 @@ def test_longterm_ai_gameplay(turns=100):
     
     # Test 5: Energia nie powinna być < -100 (kryzys energetyczny)
     tests_total += 1
-    if final['e1_energy'] > -100 and final['e2_energy'] > -100:
-        print("✓ No severe energy crisis")
+    if final['e1_cash'] > -100 and final['e2_cash'] > -100:
+        print("✓ No severe cash crisis")
         tests_passed += 1
     else:
-        print("✗ Severe energy crisis detected")
+        print("✗ Severe cash crisis detected")
     
     # === GROWTH ANALYSIS ===
     print("\n--- GROWTH ANALYSIS ---")
@@ -230,124 +230,6 @@ def init_empire_start(empire, planet):
     print()
 
 
-# Dodaj też debug do AI tick w SimpleAI:
-
-def tick(self):
-    """Główna pętla AI - wykonuje akcje co kilka ticków"""
-    self.cooldown -= 1
-    self.colonization_cooldown -= 1
-    
-    if self.cooldown > 0:
-        return
-    
-    self.cooldown = 3
-    
-    # DEBUG: Co 50 turów pokaż status
-    if self.galaxy.turn % 50 == 0:
-        print(f"\n[AI {self.empire.name}] Turn {self.galaxy.turn} Status:")
-        print(f"  Planets: {len(self.empire.planets)}")
-        print(f"  Colonization cooldown: {self.colonization_cooldown}")
-        
-        for i, p in enumerate(self.empire.planets):
-            print(f"  Planet {i}: pop={p.population.size:.1f}, "
-                  f"energy={p.storage.get('energy', 0):.0f}, "
-                  f"minerals={p.storage.get('minerals', 0):.0f}")
-
-    # 1️⃣ PRIORYTET: KOLONIZACJA
-    if self.colonization_cooldown <= 0 and len(self.empire.planets) < 15:
-        print(f"[AI {self.empire.name}] Attempting colonization...")
-        if self.try_colonize():
-            self.colonization_cooldown = 10
-            return
-        else:
-            print(f"[AI {self.empire.name}] Colonization failed - will retry in 10 turns")
-            self.colonization_cooldown = 10  # Również ustaw cooldown na failure
-
-    # 2️⃣ Rozwój
-    if self.empire.planets:
-        planet = self.pick_development_planet()
-        if planet:
-            self.develop_planet(planet)
-
-
-# W try_colonize dodaj więcej debugowania:
-
-def try_colonize(self):
-    """Próbuje skolonizować nową planetę"""
-    
-    if not self.empire.planets:
-        print(f"  No planets to colonize from")
-        return False
-    
-    # 1️⃣ Znajdź valid source planets
-    valid_sources = []
-    for p in self.empire.planets:
-        if not p.colonized or not p.population:
-            print(f"  Planet {id(p)} not colonized or no population")
-            continue
-        
-        energy = p.storage.get('energy', 0)
-        minerals = p.storage.get('minerals', 0)
-        pop = p.population.size
-        
-        print(f"  Checking planet {id(p)}: energy={energy:.1f}, minerals={minerals:.1f}, pop={pop:.1f}")
-        
-        if energy >= 12 and minerals >= 7 and pop >= 1.5:
-            valid_sources.append(p)
-            print(f"    ✓ Valid source!")
-        else:
-            print(f"    ✗ Insufficient resources")
-    
-    if not valid_sources:
-        print(f"  No valid source planets found")
-        return False
-    
-    source = max(valid_sources, 
-                key=lambda p: p.storage.get('energy', 0) + p.storage.get('minerals', 0))
-    
-    print(f"  Selected source: {id(source)}")
-    
-    # 2️⃣ Znajdź target
-    target = self.find_colonization_target(source)
-    if not target:
-        print(f"  No colonization target found")
-        return False
-    
-    print(f"  Selected target: {id(target)}")
-    
-    # 3️⃣ Znajdź wolny hex
-    free_hex = next(
-        (h for h in target.hex_map.hexes if not h.is_blocked()),
-        None
-    )
-    if not free_hex:
-        print(f"  No free hex on target")
-        return False
-    
-    print(f"  Building on hex: ({free_hex.q}, {free_hex.r})")
-    
-    # 4️⃣ Zbuduj SpacePort
-    spaceport = SpacePort()
-    spaceport.owner = self.empire
-    
-    print(f"  Calling SpacePort.build()")
-    print(f"    Source energy before: {source.storage.get('energy', 0):.1f}")
-    print(f"    Source minerals before: {source.storage.get('minerals', 0):.1f}")
-    print(f"    Source pop before: {source.population.size:.1f}")
-    
-    success, msg = spaceport.build(target, free_hex, source)
-    
-    if success:
-        print(f"  ✓ SUCCESS: {msg}")
-        print(f"    Source energy after: {source.storage.get('energy', 0):.1f}")
-        print(f"    Source pop after: {source.population.size:.1f}")
-        print(f"    Target colonized: {target.colonized}")
-        print(f"    Target pop: {target.population.size:.1f}")
-        return True
-    else:
-        print(f"  ✗ FAILED: {msg}")
-    
-    return False
 
 
 def create_charts(stats, empire1_name, empire2_name, turns):
@@ -405,14 +287,14 @@ def create_charts(stats, empire1_name, empire2_name, turns):
             <h3>{empire1_name}</h3>
             <p>Final Planets: {stats[-1]['e1_planets']}</p>
             <p>Final Population: {stats[-1]['e1_pop']:.1f}</p>
-            <p>Final Energy: {stats[-1]['e1_energy']:.1f}</p>
+            <p>Final cash: {stats[-1]['e1_cash']:.1f}</p>
             <p>Final Buildings: {stats[-1]['e1_buildings']}</p>
         </div>
         <div class="stat-box">
             <h3>{empire2_name}</h3>
             <p>Final Planets: {stats[-1]['e2_planets']}</p>
             <p>Final Population: {stats[-1]['e2_pop']:.1f}</p>
-            <p>Final Energy: {stats[-1]['e2_energy']:.1f}</p>
+            <p>Final cash: {stats[-1]['e2_cash']:.1f}</p>
             <p>Final Buildings: {stats[-1]['e2_buildings']}</p>
         </div>
     </div>
@@ -505,41 +387,41 @@ def create_charts(stats, empire1_name, empire2_name, turns):
     </script>
 """
 
-    # Energy chart
+    # cash chart
     html += """
     <div class="chart">
-        <h2>Energy Balance</h2>
-        <div id="energyChart"></div>
+        <h2>cash Balance</h2>
+        <div id="cashChart"></div>
     </div>
     
     <script>
-    var energyData = [
+    var cashData = [
         {
             x: """ + str(turns_data) + """,
-            y: """ + str([s['e1_energy'] for s in stats]) + """,
+            y: """ + str([s['e1_cash'] for s in stats]) + """,
             name: '""" + empire1_name + """',
             type: 'scatter',
             line: {color: '#50c878'}
         },
         {
             x: """ + str(turns_data) + """,
-            y: """ + str([s['e2_energy'] for s in stats]) + """,
+            y: """ + str([s['e2_cash'] for s in stats]) + """,
             name: '""" + empire2_name + """',
             type: 'scatter',
             line: {color: '#c850b4'}
         }
     ];
     
-    var energyLayout = {
-        title: 'Energy Reserves',
+    var cashLayout = {
+        title: 'cash Reserves',
         xaxis: {title: 'Turn', color: '#ccc', gridcolor: '#444'},
-        yaxis: {title: 'Energy', color: '#ccc', gridcolor: '#444'},
+        yaxis: {title: 'cash', color: '#ccc', gridcolor: '#444'},
         paper_bgcolor: '#2a2a2a',
         plot_bgcolor: '#1a1a1a',
         font: {color: '#ccc'}
     };
     
-    Plotly.newPlot('energyChart', energyData, energyLayout);
+    Plotly.newPlot('cashChart', cashData,cashLayout);
     </script>
 """
     # Total storage chart
@@ -643,7 +525,7 @@ def empire_storage_sum(empire):
 if __name__ == "__main__":
     import sys
     
-    turns = 1000
+    turns = 100
     if len(sys.argv) > 1:
         try:
             turns = int(sys.argv[1])

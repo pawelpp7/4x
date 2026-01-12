@@ -9,7 +9,7 @@ class Building:
         pop_cost=1.0,
         pop_required=1.0,
         pop_upkeep=0.01,
-        energy = 1.0,
+        cash = 1.0,
 
         owner=None
     ):
@@ -19,7 +19,7 @@ class Building:
         self.pop_cost = pop_cost        
         self.pop_required = pop_required
         self.owner = owner
-        self.energy = energy
+        self.cash = cash
         self.pop_upkeep = pop_upkeep
 
     def can_afford(self, planet):
@@ -47,6 +47,8 @@ class Building:
         Kompletny proces: sprawdzenie -> płatność -> umieszczenie -> efekt
         """
         # 1️⃣ Sprawdzenie czy można zbudować
+        if not planet.can_build(self):
+            return False, "Cannot build on this planet"
         if not hex.can_build(self, planet):
             return False, "Cannot build on this hex"
         if not self.owner:

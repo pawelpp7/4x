@@ -108,16 +108,16 @@ class Galaxy:
         for empire in self.empires:
             empire.tick()
             empire.status(self)
-            energy_delta = 0.0
+            cash_delta = 0.0
 
             for planet in empire.planets:
-                energy_delta += planet.energy_delta()  # ✅ NAWIASY
+                cash_delta += planet.cash_delta()  
 
-            empire.energy += energy_delta
-            empire.energy_last = energy_delta
+            empire.cash += cash_delta
+            empire.cash_last = cash_delta
 
-            if empire.energy < 0:
-                self.energy_crisis(empire)
+            if empire.cash < 0:
+                self.cash_crisis(empire)
                 
         # 2️⃣ Tick planet
         for entry in self.systems:
@@ -146,8 +146,8 @@ class Galaxy:
             
             
             
-    def energy_crisis(self, empire):
-        empire.energy = 0
+    def cash_crisis(self, empire):
+        empire.cash = 0
 
         for planet in empire.planets:
             planet.population.size *= 0.98  

@@ -163,7 +163,7 @@ def draw_simple_build_menu(screen, planet, hex, available_buildings, font, menu_
             cost_x += 85
         
         # Upkeep
-        upkeep = f"Up: {building.pop_upkeep:.1f}p {building.energy:.1f}e"
+        upkeep = f"Up: {building.pop_upkeep:.1f}p {building.cash:.1f}e"
         screen.blit(font.render(upkeep, True, (130, 130, 150)), (item_rect.x + 300, item_rect.y + 30))
         
         # Status

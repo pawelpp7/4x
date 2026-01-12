@@ -41,14 +41,18 @@ class Planet:
         self.population = Population(size=0.0)
         self.population_hub = PopulationHub()
         self.spaceport = None
+        self.shield_strength=100.0
+        self.shield_max=100.0
+        self.orbital_platforms=[]
         
         self.military_units = []
-        self.military_level = 5
+        self.military_level = 0
         
         self.max_population = 100.0  # bazowy cap
 
         self.building_limits = defaultdict(int)
         self.buildings = []
+        self.morale_regen = 0.05
 
         # planetarne biasy
         self.temperature = uniform(-1.5, 1.5)
@@ -186,11 +190,12 @@ class Planet:
         self.population.stats = stats
         
     def can_build(self, building):
-        # Space Port zawsze można budować (jeśli limit pozwala)
-        if building.name == "Space Port":
-            return True
+        if building.name == "Space Port" :
+            if  self.colonization_state == "none":
+                return True
+            else:
+                return False
 
-        # Inne budynki tylko po kolonizacji
         if not self.colonized:
             return False
 
@@ -265,6 +270,21 @@ class Planet:
         if self.colonized and self.population.size > 0:
             self.military_manager.tick()
 
+        # ✅ NOWE - Shield regeneration
+        if self.shield_strength>0 and self.shield_strength < self.shield_max:
+            self.shield_strength = min(
+                self.shield_max,
+                self.shield_strength + self.shield_regen
+            )
+        
+        # ✅ NOWE - Orbital platforms regeneration
+        for platform in self.orbital_platforms:
+            if platform["health"] < platform["max_health"]:
+                platform["health"] = min(
+                    platform["max_health"],
+                    platform["health"] + platform["regen"]
+                )
+
         # ⚖️ ZBALANSOWANY WZROST POPULACJI
         
         # 1️⃣ Bazowy wzrost (z planet.population.growth, domyślnie 0.01 = 1%)
@@ -295,9 +315,9 @@ class Planet:
     # ENERGY
     # ------------------------------------------------------------------
 
-    def energy_delta(self):
+    def cash_delta(self):
         if not self.colonized or self.population.size==0:
-            return {}
+            return 0
 
         return self.population.free * ENERGY_PER_FREE_POP
 
@@ -312,25 +332,30 @@ class Planet:
             return False
         return True
 
-    def start_colonization(self, empire):
-        if not self.can_colonize(empire):
-            return False
 
-        
-
-        self.owner = empire
-        self.colonization_state = "colonizing"
-        self.colonization_progress = 0.0
-        return True
 
     def finish_colonization(self):
+        """POPRAWIONA WERSJA"""
         self.colonization_state = "colonized"
         self.colonized = True
-        self.owner.planets.append(self)
-        self.population = Population(size=1.0)
+        
+        # ✅ POPRAWKA: Sprawdź czy już jest w liście
+        if self.owner and self not in self.owner.planets:
+            self.owner.planets.append(self)
+            print(f"COLONY Planet {id(self)} colonized by {self.owner.name}")
+        elif self.owner and self in self.owner.planets:
+            print(f"COLONY Planet {id(self)} already in {self.owner.name} list")
+        
+        # Inicjalizacja
+        if not self.population or self.population.size == 0:
+            self.population = Population(size=1.0)
+        
         self.init_population_stats()
-        self.storage = {r: 10.0 for r in BASIC_RESOURCES}
-        print(f"COLONY Planet {id(self)} colonized by {self.owner.name}")
+        
+        # Storage jeśli nie ma
+        from core.config import BASIC_RESOURCES
+        if not hasattr(self, 'storage') or not self.storage:
+            self.storage = {r: 10.0 for r in BASIC_RESOURCES}
 
 
     def _process_building(self, b, hex, total):
@@ -366,3 +391,20 @@ class Planet:
             if h.building_major and h.building_major.name == "Space Port":
                 return True
         return False
+
+    def set_owner(self, new_empire):
+        """
+        Bezpiecznie zmienia właściciela planety
+        Usuwa z listy starego, dodaje do nowego
+        """
+        # Usuń ze starego właściciela
+        if self.owner and self.owner != new_empire:
+            if self in self.owner.planets:
+                self.owner.planets.remove(self)
+                print(f"[OWNERSHIP] Removed planet from {self.owner.name}")
+        
+        # Dodaj do nowego właściciela
+        self.owner = new_empire
+        if new_empire and self not in new_empire.planets:
+            new_empire.planets.append(self)
+            print(f"[OWNERSHIP] Added planet to {new_empire.name}")

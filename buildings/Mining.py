@@ -12,7 +12,7 @@ class MiningComplex(Building):
                 "rare_elements": 3,  # was: exotics
             },
             pop_upkeep=0.1,
-            energy=-0.3
+            cash=-0.3
         )
         self.resource = resource
         self.efficiency = efficiency

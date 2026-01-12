@@ -4,13 +4,13 @@ from empire.transport import TransportManager
 from military.units import EmpireMilitaryManager
 
 class Empire:
-    def __init__(self, name, color, galaxy, is_player=False, energy=200):
+    def __init__(self, name, color, galaxy, is_player=False, cash=200):
         self.name = name
         self.color = color
         self.galaxy = galaxy
-        self.energy = energy
+        self.cash = cash
         self.is_player = is_player
-        self.energy_last = 100.0
+        self.cash_last = 100.0
         self.planets = []
         
         # ✅ NOWY: Transport Manager
