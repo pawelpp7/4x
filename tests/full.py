@@ -46,7 +46,7 @@ def test_full_colonization_and_development_flow():
     print("\n--- SETTING UP SOURCE PLANET ---")
     try:
         source_planet.colonized = True
-        source_planet.owner = empire
+        source_planet.set_owner(empire)
         source_planet.population = Population(size=10.0)
         empire.planets.append(source_planet)
         

@@ -198,7 +198,7 @@ def init_empire_start(empire, planet):
     print(f"  Planet ID: {id(planet)}")
     
     esp = EmpireSpacePort()
-    esp.owner = empire
+    esp.set_owner(empire)
     
     # Znajdź wolny hex
     free_hex = next(

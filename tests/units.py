@@ -1,6 +1,6 @@
 """
-test_minimal_combat_game.py
-Pełna symulacja walki z desantem, doktryną i AI
+test_minimal_combat_game.py - POPRAWIONA WERSJA
+Dłuższe, bardziej epickie bitwy
 """
 
 import pygame
@@ -21,7 +21,7 @@ from military.combat import CombatResolver
 
 WIDTH, HEIGHT = 1600, 900
 FPS = 10
-TICK_MS = 2000
+TICK_MS = 2000  # 2 sekundy na turę
 
 # Kolory
 BG_COLOR = (10, 10, 15)
@@ -43,7 +43,7 @@ class MinimalCombatGame:
     def __init__(self):
         # Galaktyka
         self.galaxy = Galaxy(system_count=2, size=600)
-        self.galaxy.active_invasions = []  # Lista aktywnych desantów
+        self.galaxy.active_invasions = []
         
         # AI empires
         self.empire_a = Empire("Red Empire", (200, 80, 80), self.galaxy, is_player=False)
@@ -66,10 +66,8 @@ class MinimalCombatGame:
                 planet.population.size = 20.0
                 planet.military_level = 3
                 
-                # Starting garrison
-                self._add_test_units(planet, empire, 2)
-        
-
+                # ✅ ZWIĘKSZ LICZBĘ JEDNOSTEK - więcej = dłuższa walka
+                self._add_test_units(planet, empire, count=15)  # 15 zamiast 2 - duże bitwy!
         
         # State
         self.paused = True
@@ -77,11 +75,16 @@ class MinimalCombatGame:
         self.battle_history = []
         
     def _add_test_units(self, planet, empire, count):
-        """Dodaje startowe jednostki"""
+        """Dodaje startowe jednostki - MIX typów dla ciekawszej walki"""
         from military.population_synergy import apply_population_bonuses_to_unit
         
-        for _ in range(count):
-            unit = Infantry(owner=empire)
+        # Mix: Infantry + Tanks
+        for i in range(count):
+            if i % 3 == 0:  # Co trzecia jednostka to Tank
+                unit = Tank(owner=empire)
+            else:
+                unit = Infantry(owner=empire)
+            
             apply_population_bonuses_to_unit(unit, planet)
             planet.military_manager.garrison.append(unit)
     
@@ -92,31 +95,24 @@ class MinimalCombatGame:
         print(f"TURN {self.turn}")
         print(f"{'='*50}")
         
-        # 1. AI decyzje
-        for empire in self.galaxy.empires:
-            if empire.ai:
-                empire.ai.tick()
-        
-        # 2. Empire tick
-        for empire in self.galaxy.empires:
-            empire.tick()
-        
-        # 3. Galaxy tick
+        # Galaxy tick
         self.galaxy.tick()
         
-        # 4. Tick invasions
+        # ✅ TICK INVASIONS **PRZED** statusem
         finished = []
         for invasion in self.galaxy.active_invasions:
-            invasion.tick()
+            print(f"[INVASION] Ticking invasion - Status: {invasion.status}, Round: {invasion.resolver.round if invasion.resolver else 0}")
+
             
             if invasion.status != "in_progress":
                 finished.append(invasion)
                 self.battle_history.append(invasion)
+                print(f"[INVASION] Invasion finished with status: {invasion.status}")
         
         for inv in finished:
             self.galaxy.active_invasions.remove(inv)
         
-        # 5. Status
+        # Status
         self.print_status()
     
     def print_status(self):
@@ -127,6 +123,15 @@ class MinimalCombatGame:
                 garrison = planet.military_manager.garrison
                 production = len(planet.military_manager.production_queue.queue)
                 print(f"  Planet: {len(garrison)} units, {production} in production")
+        
+        # Status inwazji
+        if self.galaxy.active_invasions:
+            print(f"\n[INVASIONS] Active: {len(self.galaxy.active_invasions)}")
+            for inv in self.galaxy.active_invasions:
+                rounds = inv.resolver.round if inv.resolver else 0
+                atk_alive = len([u for u in inv.invasion_force if u.current_health > 0])
+                def_alive = len([u for u in inv.target.military_manager.garrison if u.current_health > 0])
+                print(f"  Round {rounds}: {atk_alive} attackers vs {def_alive} defenders")
 
 
 # ============================================
@@ -198,7 +203,6 @@ def draw_unit_card(screen, x, y, unit, font_small, show_morale=True):
         morale_color = (220, 220, 80) if morale_ratio > 0.5 else (220, 150, 50) if morale_ratio > 0.2 else (220, 80, 80)
         pygame.draw.rect(screen, morale_color, (x + 5, morale_bar_y, int(bar_w * morale_ratio), 8))
         pygame.draw.rect(screen, (100, 100, 120), (x + 5, morale_bar_y, bar_w, 8), 1)
-        
         
         morale_text = f"Morale: {unit.current_morale:.2f}"
         morale_surf = font_small.render(morale_text, True, TEXT_COLOR if alive else (150, 100, 100))
@@ -286,11 +290,19 @@ def draw_battle_panel(screen, invasion, x, y, w, h, font, font_small, log_scroll
     
     # Info
     info_y = start_y + 30
+    
+    # ✅ Pokazuj LIVE statystyki walki
+    rounds = invasion.resolver.round if invasion.resolver else 0
+    atk_alive = len([u for u in invasion.invasion_force if u.current_health > 0])
+    def_alive = len([u for u in invasion.target.military_manager.garrison if u.current_health > 0])
+    
     info = [
         f"Attacker: {invasion.attacker.name}",
         f"Target: Planet owned by {invasion.target.owner.name if invasion.target.owner else 'Neutral'}",
-        f"Invasion force: {len(invasion.invasion_force)} units",
-        f"Defenders: {len(invasion.target.military_manager.garrison)} units",
+        f"",
+        f"Round: {rounds} / 20",
+        f"Attackers alive: {atk_alive} / {len(invasion.invasion_force)}",
+        f"Defenders alive: {def_alive} / {len(invasion.target.military_manager.garrison)}",
     ]
     
     for line in info:
@@ -310,7 +322,9 @@ def draw_battle_panel(screen, invasion, x, y, w, h, font, font_small, log_scroll
         log_surface.fill(PANEL_COLOR)
         
         line_height = 14
-        for i, line in enumerate(invasion.combat_log[-50:]):  # Last 50 lines
+        visible_lines = invasion.combat_log[-100:]  # Ostatnie 100 linii
+        
+        for i, line in enumerate(visible_lines):
             line_y = i * line_height - log_scroll
             
             if -line_height < line_y < log_area_h:
@@ -321,10 +335,10 @@ def draw_battle_panel(screen, invasion, x, y, w, h, font, font_small, log_scroll
                     color = (150, 200, 220)
                 elif "destroyed" in line or "DESTROYED" in line:
                     color = (220, 100, 100)
-                elif "MORALE BREAK" in line:
+                elif "collapses" in line or "retreats" in line:
                     color = (220, 150, 50)
                 
-                surf = font_small.render(line[:80], True, color)
+                surf = font_small.render(line[:100], True, color)
                 log_surface.blit(surf, (5, line_y))
         
         screen.blit(log_surface, (x + 10, log_y))

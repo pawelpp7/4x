@@ -21,7 +21,7 @@ def test_refinery_system():
     # Skolonizuj planetę
     planet = galaxy.systems[0]["system"].planets[0]
     esp = EmpireSpacePort()
-    esp.owner = empire
+    esp.set_owner(empire)
     
     hex_esp = next((h for h in planet.hex_map.hexes if not h.is_blocked()), None)
     success, msg = esp.build(planet, hex_esp)
