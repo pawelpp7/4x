@@ -28,3 +28,4 @@ BUILDINGS = {
     
     **MILITARY_BUILDINGS,
 }
+

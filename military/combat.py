@@ -84,7 +84,8 @@ class CombatResolver:
             all_units.append(("defender", u))
 
         all_units.sort(key=lambda x: x[1].stats.speed, reverse=True)
-
+        apply_auras(self.attackers + self.defenders)
+        apply_active_effects(self.attackers + self.defenders, phase="start_of_round")
         for side, unit in all_units:
             if unit.current_health <= 0:
                 continue
@@ -94,7 +95,7 @@ class CombatResolver:
 
             if not enemies:
                 break
-
+            
             target = self._pick_target(enemies)
             dmg, info = self._calculate_damage_with_breakdown(unit, target, bonus)
             target.current_health = max(0, target.current_health - dmg)
@@ -143,7 +144,7 @@ class CombatResolver:
         self.defenders = [u for u in self.defenders if u.current_health > 0]
         self.attackers = [u for u in self.attackers if u.current_health > 0]
 
-                
+        apply_active_effects(self.attackers + self.defenders, phase="end_of_round")        
         if not self.attackers or not self.defenders:
             self._finish_battle()
 
@@ -243,87 +244,54 @@ class CombatResolver:
 
         return None
 
-# =========================================================
-# TICK-BASED COMBAT
-# =========================================================
+    def apply_auras(units):
+        for unit in units:
+            for buff in unit.buffs:
+                if buff.aura:
+                    for target in get_targets(unit, units, buff.aura["range"]):
+                        apply_effect(target, buff.aura["effect"])
 
-class CombatInstance:
-    """Trwająca walka – 1 tick = 1 runda"""
+    def apply_active_effects(units, phase):
+        for unit in units:
+            for buff in unit.buffs:
+                if buff.active_effect and buff.active_effect["phase"] == phase:
+                    for target in get_targets(unit, units, buff.active_effect["target"]):
+                        target.stats.health = min(
+                            target.stats.max_health,
+                            target.stats.health + buff.active_effect.get("heal", 0)
+                        )
 
-    def __init__(self, attackers, defenders, location=None):
-        self.attackers = [u for u in attackers if u.current_health > 0]
-        self.defenders = [u for u in defenders if u.current_health > 0]
+    def get_targets(source, units, scope):
+        if scope == "self":
+            return [source]
+        if scope == "army":
+            return units
+        if scope == "adjacent":
+            return [u for u in units if u is not source]  # placeholder
+        return []
 
-        self.round = 0
-        self.max_rounds = 20
-        self.finished = False
-        self.winner = None
+    def resolve_attack(attacker, defender):
+        attacker.trigger("on_attack", defender)
+        defender.trigger("on_defense", attacker)
 
-        self.log = []
-        self.defender_bonus = 1.15 if location else 1.0
-        self.resolver = CombatResolver()
+        damage = attacker.get_stat("attack") - defender.get_stat("defense")
+        damage = max(0, damage)
 
-    def tick(self):
-        if self.finished:
-            return
+        defender.stats.health -= damage
 
-        self.round += 1
-        self.log.append(f"\n--- ROUND {self.round} ---")
+    def resolve_combat_turn(attacking_units, defending_units):
+        all_units = attacking_units + defending_units
 
-        self.resolver._combat_round(
-            self.attackers,
-            self.defenders,
-            self.defender_bonus,
-            self.log
-        )
+        # 1️⃣ start tury
+        apply_auras(all_units)
+        apply_active_effects(all_units, phase="turn_start")
 
-        self.attackers = [u for u in self.attackers if u.current_health > 0]
-        self.defenders = [u for u in self.defenders if u.current_health > 0]
+        # 2️⃣ ataki
+        for attacker, defender in zip(attacking_units, defending_units):
+            resolve_attack(attacker, defender)
 
-        if not self.attackers and not self.defenders:
-            self.finished = True
-            self.winner = "draw"
-        elif not self.defenders:
-            self.finished = True
-            self.winner = "attacker"
-        elif not self.attackers:
-            self.finished = True
-            self.winner = "defender"
-        elif self.round >= self.max_rounds:
-            self.finished = True
-            self._timeout()
+        # 3️⃣ koniec tury
+        apply_active_effects(all_units, phase="turn_end")
 
-    def _timeout(self):
-        atk = sum(u.combat_power() for u in self.attackers)
-        deff = sum(u.combat_power() for u in self.defenders)
-        self.winner = "attacker" if atk > deff else "defender"
-
-# =========================================================
-# BACKWARD COMPATIBILITY
-# =========================================================
-
-def resolve_battle(attackers, defenders, location=None):
-    """
-    STARE API – działa jak wcześniej
-    ale wewnętrznie używa ticków
-    """
-
-    combat = CombatInstance(attackers, defenders, location)
-
-    while not combat.finished:
-        combat.tick()
-
-    return CombatResult(
-        winner=combat.winner,
-        attacker_losses=[u for u in attackers if u.current_health <= 0],
-        defender_losses=[u for u in defenders if u.current_health <= 0],
-        attacker_damage_dealt=0,
-        defender_damage_dealt=0,
-        rounds=combat.round,
-        log=combat.log
-    )
-
-# =========================================================
-# PLANETARY INVASION (TICK SAFE)
-# =========================================================
-
+        for unit in all_units:
+            unit.remove_expired_buffs()

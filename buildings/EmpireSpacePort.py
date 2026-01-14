@@ -30,8 +30,16 @@ class EmpireSpacePort(Building):
         planet.colonized = True
         planet.population = Population(size=10.0)
         planet.population.planet = planet
-        planet.owner = self.owner
-        self.owner.planets.append(planet)
+        try:
+            planet.set_owner(self.owner)
+        except Exception:
+            # fallback: direct assign
+            planet.owner = self.owner
+            try:
+                if self.owner and planet not in self.owner.planets:
+                    self.owner.planets.append(planet)
+            except Exception:
+                pass
 
         planet.init_population_stats()
         planet.storage = {r: 0.0 for r in ALL_RESOURCES}

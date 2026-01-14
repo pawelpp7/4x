@@ -75,3 +75,5 @@ def calculate_resources(hex):
         res["rare_elements"] = abs(l) - l_th
 
     hex.resources = res
+
+

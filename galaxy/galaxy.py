@@ -8,6 +8,7 @@ class Galaxy:
     def __init__(self, system_count=20, size=1000, links_per_system=3):
         self.systems = []
         self.empires = []
+        self.active_invasions = []
         self.turn = 0
 
         self.generate(system_count, size)
@@ -124,6 +125,15 @@ class Galaxy:
             system = entry["system"]
             for planet in system.planets:
                 planet.tick()
+
+        # 3️⃣ Tick active invasions
+        for inv in list(self.active_invasions):
+            inv.tick()
+            if inv.status != "in_progress":
+                try:
+                    self.active_invasions.remove(inv)
+                except ValueError:
+                    pass
 
 
 

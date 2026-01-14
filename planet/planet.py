@@ -18,6 +18,7 @@ from military.units import PlanetMilitaryManager
 from buildings.constants import BUILDING_SMALL, BUILDING_PLANET_UNIQUE
 from core.rng import uniform, choice
 from collections import defaultdict
+import logging
 
 ENERGY_PER_FREE_POP = 0.3
 MAX_SMALL_BUILDINGS = 2
@@ -260,7 +261,17 @@ class Planet:
             if self.colonization_progress >= self.colonization_time:
                 self.finish_colonization()
 
-        if not self.colonized or self.population.size==0:
+        if not self.colonized:
+            return
+
+        # Jeśli planeta skolonizowana, ale populacja wygasła -> dekolonizuj
+        if self.population.size <= 0.0:
+            try:
+                import logging
+                logging.info("kolonia wymarła %s", id(self))
+            except Exception:
+                pass
+            self.set_owner(None)
             return
         production = self.produce()
 
@@ -290,6 +301,24 @@ class Planet:
         # 1️⃣ Bazowy wzrost (z planet.population.growth, domyślnie 0.01 = 1%)
         inst = self.instability()
         growth_mod = max(0.2, 1.0 - inst)
+
+        # ✅ Harmony bonus: if local hex parameters (temp/height/life) are close to 0
+        # then population grows faster. Compute average absolute deviation per-hex
+        # and give a modest bonus when avg_abs < 0.5 (up to +50% growth_mod).
+        try:
+            avg_abs = 0.0
+            for h in self.hex_map.hexes:
+                avg_abs += (abs(h.temperature) + abs(h.height) + abs(h.life)) / 3.0
+            avg_abs /= max(1, len(self.hex_map.hexes))
+            # Stronger harmony bonus: if hex stats are near 0 (avg_abs -> 0)
+            # grant up to +100% growth_mod. Scale linearly so avg_abs==0 -> +1.0, avg_abs>=0.6 -> +0
+            max_threshold = 0.6
+            raw = max(0.0, max_threshold - avg_abs)
+            harmony_norm = raw / max_threshold
+            harmony_bonus = harmony_norm  # up to 1.0
+            growth_mod *= (1.0 + harmony_bonus)
+        except Exception:
+            logging.debug("Failed computing harmony bonus for planet %s", id(self))
         
         # 2️⃣ Carrying capacity (max populacja)
         max_pop = getattr(self, 'max_population', 100.0)  # domyślnie 100
@@ -309,6 +338,11 @@ class Planet:
         
         # 6️⃣ Hard cap (nigdy powyżej max)
         self.population.size = min(self.population.size, max_pop)
+        
+        if self.population.size<=0.0:
+            import logging
+            logging.info("kolonia wymarła %s", id(self))
+            self.set_owner(None)
 
 
     # ------------------------------------------------------------------
@@ -320,6 +354,25 @@ class Planet:
             return 0
 
         return self.population.free * ENERGY_PER_FREE_POP
+
+
+    def sell_excess(self, empire, resource, keep_amount, price_per_unit):
+        """Sell planet's excess `resource` above `keep_amount` to `empire` at `price_per_unit`.
+
+        Returns revenue (0.0 if nothing sold).
+        """
+        try:
+            available = self.storage.get(resource, 0.0)
+            amount = max(0.0, available - keep_amount)
+            if amount <= 0.0:
+                return 0.0
+            # Do NOT mutate planet storage here: `empire.sell_resources`
+            # is responsible for validating and deducting the sold amount.
+            revenue = empire.sell_resources(self, resource, amount, price_per_unit)
+            logging.info("Planet %s sold %.1f %s for %.2f", id(self), amount, resource, revenue)
+            return revenue
+        except Exception:
+            return 0.0
 
     # ------------------------------------------------------------------
     # COLONIZATION
@@ -342,9 +395,17 @@ class Planet:
         # ✅ POPRAWKA: Sprawdź czy już jest w liście
         if self.owner and self not in self.owner.planets:
             self.owner.planets.append(self)
-            print(f"COLONY Planet {id(self)} colonized by {self.owner.name}")
+            try:
+                import logging
+                logging.info("COLONY Planet %s colonized by %s", id(self), self.owner.name)
+            except Exception:
+                pass
         elif self.owner and self in self.owner.planets:
-            print(f"COLONY Planet {id(self)} already in {self.owner.name} list")
+            try:
+                import logging
+                logging.info("COLONY Planet %s already in %s list", id(self), self.owner.name)
+            except Exception:
+                pass
         
         # Inicjalizacja
         if not self.population or self.population.size == 0:
@@ -397,14 +458,26 @@ class Planet:
         Bezpiecznie zmienia właściciela planety
         Usuwa z listy starego, dodaje do nowego
         """
-        # Usuń ze starego właściciela
+        # Usuń ze starego właściciela jeśli jest inny
         if self.owner and self.owner != new_empire:
             if self in self.owner.planets:
                 self.owner.planets.remove(self)
-                print(f"[OWNERSHIP] Removed planet from {self.owner.name}")
-        
-        # Dodaj do nowego właściciela
+                try:
+                    print(f"[OWNERSHIP] Removed planet from {self.owner.name}")
+                except Exception:
+                    pass
+
+        # Jeśli new_empire to None (lub sentinel), wyczyść właściciela
+        if new_empire is None or new_empire == "none":
+            self.owner = None
+            return
+
+        # Dodaj do nowego właściciela jeśli to obiekt Empire
         self.owner = new_empire
-        if new_empire and self not in new_empire.planets:
-            new_empire.planets.append(self)
-            print(f"[OWNERSHIP] Added planet to {new_empire.name}")
+        try:
+            if self not in new_empire.planets:
+                new_empire.planets.append(self)
+                print(f"[OWNERSHIP] Added planet to {new_empire.name}")
+        except Exception:
+            # Nie zakładaj, że new_empire ma listę `planets`
+            pass

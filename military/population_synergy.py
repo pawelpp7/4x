@@ -10,37 +10,37 @@ System łączący statystyki populacji z jednostkami wojskowymi
 POPULATION_STAT_BONUSES = {
     # Podstawowe zasoby → statystyki jednostek
     "energy": {
-        "attack": 0.15,      # +1.5% ATK za każdy punkt energy stat
-        "speed": 0.1,   # +1% Speed
-        "morale": 0.05,
-        "upkeep": 0.08       # ✅ +0.8% upkeep (specialized = expensive)
+        "attack": 1.5,      # +1.5% ATK za każdy punkt energy stat
+        "speed": 1.0,   # +1% Speed
+        "morale": 0.5,
+        "upkeep": 0.8       # ✅ +0.8% upkeep (specialized = expensive)
     },
     "minerals": {
-        "defense": 0.2,      # +2% DEF za każdy punkt minerals stat
-        "health": 0.15,      # +1.5% HP
-        "upkeep": 0.12       # ✅ +1.2% upkeep (heavy armor = expensive)
+        "defense": 2.0,      # +2% DEF za każdy punkt minerals stat
+        "health": 1.5,      # +1.5% HP
+        "upkeep": 1.2       # ✅ +1.2% upkeep (heavy armor = expensive)
     },
     "organics": {
-        "health": 0.25,  # +2.5% HP za każdy punkt organics stat
-        "morale": 0.08,
-        "upkeep": -0.05      # -0.5% upkeep (bio-efficient = cheaper!)
+        "health": 2.5,  # +2.5% HP za każdy punkt organics stat
+        "morale": 0.8,
+        "upkeep": -0.5      # -0.5% upkeep (bio-efficient = cheaper!)
     },
     "water": {
-        "health": 0.1,       # +1% HP
-        "morale": 0.04,
-        "upkeep": -0.03      # -0.3% upkeep (water = sustenance)
+        "health": 1.0,       # +1% HP
+        "morale": 0.4,
+        "upkeep": -0.3      # -0.3% upkeep (water = sustenance)
     },
     "gases": {
-        "speed": 0.2,        # +2% Speed za każdy punkt gases stat
-        "attack": 0.1,       # +1% ATK
-        "upkeep": 0.06       # ✅ +0.6% upkeep (exotic propulsion = expensive)
+        "speed": 2.0,        # +2% Speed za każdy punkt gases stat
+        "attack": 1.0,       # +1% ATK
+        "upkeep": 0.6       # ✅ +0.6% upkeep (exotic propulsion = expensive)
     },
     "rare_elements": {
-        "attack": 0.2,       # +2% ATK za każdy punkt rare_elements
-        "defense": 0.2,      # +2% DEF
-        "health": 0.1,       # +1% HP
-        "morale": 0.06,
-        "upkeep": 0.15       # ✅ +1.5% upkeep (elite tech = very expensive!)
+        "attack": 2.0,       # +2% ATK za każdy punkt rare_elements
+        "defense": 2.0,      # +2% DEF
+        "health": 1.0,       # +1% HP
+        "morale": 0.6,
+        "upkeep": 1.5       # ✅ +1.5% upkeep (elite tech = very expensive!)
     }
 }
 
@@ -121,6 +121,7 @@ def apply_population_bonuses_to_unit(unit, planet):
     
     # Aktualizuj current_health do nowego max
     unit.current_health = unit.stats.health
+    unit.current_morale = unit.stats.morale
 
 
 # ============================================

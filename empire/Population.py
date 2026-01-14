@@ -11,7 +11,7 @@ class Population:
     def __init__(self, size=7.0):
         self.size = size
         self.used = 0.0
-        self.growth=0.02
+        self.growth=0.05
         self.happiness=1.0
 
         self.stats = {

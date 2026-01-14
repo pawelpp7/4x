@@ -90,6 +90,18 @@ class Hex:
         load = 0.0
         for b in self.buildings_small:
             load += b.pop_upkeep
+        load += self.building_major.pop_upkeep if self.building_major else 0.0
+
+        # Increase upkeep when local hex stats are further from neutral (0.0).
+        # The more extreme temperature/height/life are, the higher the upkeep multiplier.
+        try:
+            avg_abs = (abs(self.temperature) + abs(self.height) + abs(self.life)) / 3.0
+            # multiplier: 1.0 at avg_abs==0, grows up to ~2.5 for extreme tiles
+            multiplier = 1.0 + min(2.0, avg_abs * 1.5)
+            load *= multiplier
+        except Exception:
+            pass
+
         return load
 
     def population_hex_color(hex, planet):

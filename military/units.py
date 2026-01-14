@@ -5,6 +5,7 @@ Kompletny system jednostek wojskowych
 
 from dataclasses import dataclass
 from typing import Optional
+import logging
 
 # ============================================
 # DEFINICJE JEDNOSTEK
@@ -32,7 +33,30 @@ class MilitaryUnit:
         self.location = None
         self.experience = 0
         self.status = "idle"
-        
+        self.buffs = []
+
+    def add_buff(self, buff):
+        self.buffs.append(buff)
+
+    def remove_expired_buffs(self):
+        self.buffs = [b for b in self.buffs if b.tick()]
+
+    def get_stat(self, stat_name):
+        value = getattr(self.stats, stat_name)
+        for buff in self.buffs:
+            value += buff.modifiers.get(stat_name, 0)
+        return value
+
+    def trigger(self, event: str, context=None):
+        for buff in self.buffs:
+            if event in buff.triggers:
+                for stat, delta in buff.triggers[event].items():
+                    setattr(
+                        self.stats,
+                        stat,
+                        getattr(self.stats, stat) + delta
+                    )      
+                
     def take_damage(self, damage):
         """Otrzymuje obrażenia"""
         actual_damage = max(0, damage - self.stats.defense * 0.1)
@@ -42,7 +66,7 @@ class MilitaryUnit:
     def heal(self, amount):
         """Leczy jednostkę"""
         self.current_health = min(self.stats.health, self.current_health + amount)
-        self.current_morale = min(self.stats.morale, (self.current_morale*self.current_health + amount)/self.stats.health)
+        self.current_morale = min(self.stats.morale, (self.current_morale*(self.current_health + amount))/self.stats.health)
         
     def add_experience(self, xp):
         """Dodaje doświadczenie"""
@@ -76,7 +100,7 @@ class Infantry(MilitaryUnit):
         stats = UnitStats(
             attack=10.0,
             defense=8.0,
-            health=50.0,
+            health=100.0,
             morale=1.0,
             speed=2,
             upkeep=0.5
@@ -95,7 +119,7 @@ class Tank(MilitaryUnit):
         stats = UnitStats(
             attack=25.0,
             defense=20.0,
-            health=100.0,
+            health=200.0,
             speed=1,
             morale=1.0,
             upkeep=1.5
@@ -114,7 +138,7 @@ class Fighter(MilitaryUnit):
         stats = UnitStats(
             attack=20.0,
             defense=5.0,
-            health=40.0,
+            health=80.0,
             morale=1.0,
             speed=5,
             upkeep=1.0
@@ -133,7 +157,7 @@ class Frigate(MilitaryUnit):
         stats = UnitStats(
             attack=30.0,
             defense=15.0,
-            health=120.0,
+            health=240.0,
             morale=1.0,
             speed=3,
             upkeep=2.0
@@ -154,7 +178,7 @@ class Destroyer(MilitaryUnit):
         stats = UnitStats(
             attack=60.0,
             defense=35.0,
-            health=250.0,
+            health=500.0,
             speed=2,
             morale=1.0,
             upkeep=4.0
@@ -318,7 +342,10 @@ class PlanetMilitaryManager:
         
         for unit in completed_units:
             self.garrison.append(unit)
-            print(f"[{self.planet.owner.name}] {unit.name} completed!")
+            try:
+                logging.info("[%s] %s completed!", self.planet.owner.name, unit.name)
+            except Exception:
+                logging.info("[Unknown owner] %s completed!", unit.name)
             
         # Upkeep jednostek
         total_upkeep = sum(u.stats.upkeep for u in self.garrison)

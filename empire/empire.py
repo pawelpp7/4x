@@ -1,4 +1,5 @@
 # empire/empire.py - UPDATED
+import logging
 from ai.simple_ai import SimpleAI
 from empire.transport import TransportManager
 from military.units import EmpireMilitaryManager
@@ -13,14 +14,17 @@ class Empire:
         self.cash_last = 100.0
         self.planets = []
         
-        # ✅ NOWY: Transport Manager
+        # ✅ NOWY: Transport + Military managers
         self.transport_manager = TransportManager(self)
-        
-        for p in self.planets:
-            p.owner = self
-            p.colonized = True
-            self.planets.append(p)
         self.military_manager = EmpireMilitaryManager(self)
+
+        # If `planets` was pre-filled, ensure ownership is consistent
+        for p in list(self.planets):
+            try:
+                p.set_owner(self)
+                p.colonized = True
+            except Exception:
+                pass
 
         self.ai = None
         if not is_player:
@@ -33,31 +37,39 @@ class Empire:
         
         if not self.is_player:
             self.ai.tick()
-            
-        for p in self.planets:
+        # Usuń martwe kolonie (populacja 0) by nie pojawiały się w statusie
+        for p in list(self.planets):
+            try:
+                if getattr(p, 'colonized', False) and getattr(p, 'population', None) and p.population.size <= 0.0:
+                    p.set_owner(None)
+            except Exception:
+                pass
+
+        for p in list(self.planets):
             if p.owner is not self:
-                print(" PLANET OWNER DESYNC", p)
+                logging.warning("PLANET OWNER DESYNC %s", p)
         
     def status(self, galaxy):
-        print(f"=== {self.name} STATUS ===")
+        logging.info("=== %s STATUS ===", self.name)
         
         # Pokaż aktywne transporty
         if self.transport_manager.transports:
-            print(f"Active transports: {len(self.transport_manager.transports)}")
+            logging.info("Active transports: %d", len(self.transport_manager.transports))
             for t in self.transport_manager.transports:
                 source_sys, source_orbit = t.source.get_location(galaxy)
                 target_sys, target_orbit = t.target.get_location(galaxy)
-               # print(f"  S{source_orbit}→S{target_orbit}: {t.time_remaining}/{t.time_total} turns")
         
         for p in self.planets:
             system, orbit = p.get_location(galaxy)
             pos = f"System {system.star.type if system else '??'}, Orbit {orbit}" 
-            print(f"Planet {id(p)} @ {pos}: Population={p.population.size:.1f}, Buildings={p.buildings_summary()}")
+            logging.info("Planet %s @ %s: Population=%.1f, Buildings=%s", id(p), pos, p.population.size, p.buildings_summary())
 
     def add_planet(self, planet):
         if planet not in self.planets:
-            self.planets.append(planet)
-            planet.owner = self
+            try:
+                planet.set_owner(self)
+            except Exception:
+                planet.owner = self
             
     def can_colonize(self, planet):
         return not planet.colonized
@@ -65,3 +77,22 @@ class Empire:
     def create_transport(self, source, target, cargo, transport_type="resources"):
         """Wrapper dla tworzenia transportu"""
         return self.transport_manager.create_transport(source, target, cargo, transport_type)
+    
+    def sell_resources(self, planet, resource, amount, price_per_unit):
+        """Sell `amount` of `resource` from `planet` for `price_per_unit` each.
+
+        Returns revenue (0.0 if insufficient stock).
+        """
+        try:
+            if planet.storage.get(resource, 0.0) < amount:
+                logging.debug("Not enough %s to sell from planet %s", resource, id(planet))
+                return 0.0
+
+            planet.storage[resource] -= amount
+            revenue = amount * price_per_unit
+            self.cash += revenue
+            logging.info("%s sold %.1f %s from planet %s for %.2f cash", self.name, amount, resource, id(planet), revenue)
+            return revenue
+        except Exception:
+            # safe fallback: do nothing on unexpected errors
+            return 0.0

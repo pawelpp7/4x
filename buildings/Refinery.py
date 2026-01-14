@@ -9,8 +9,9 @@ from core.config import BASIC_RESOURCES
 from core.config import ENVIRONMENT_WEIGHTS
 
 class Refinery(Building):
-    workers_required = 0.8
+    workers_required = 0.08
     cash_cost = 0.6
+    pop_upkeep=0.1,
 
     def __init__(self, name, inputs, output, extreme_bonus_type=None):
         """

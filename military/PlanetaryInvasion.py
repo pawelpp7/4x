@@ -1,9 +1,6 @@
-"""
-military/combat.py - UPDATED VERSION
-Dodaj tę klasę do istniejącego pliku military/combat.py
-"""
 
 
+import logging
 from military.combat import CombatResolver
 
 
@@ -58,18 +55,33 @@ class PlanetaryInvasion:
             self.target.military_manager.garrison = [u for u in garrison if u.current_health > 0]
     
     def _capture_planet(self):
+        """Przejmuje planetę - POPRAWIONA WERSJA"""
+        
+        # Sprawdź czy już przejęta
         if self.status == "successful":
             return
-
+        
+        old_owner = self.target.owner
+        
+        # ✅ UŻYJ BEZPIECZNEJ METODY
         self.target.set_owner(self.attacker)
-
-        self.target.colonized = True
-        self.target.colonization_state = "colonized"
-
+        
+        # Upewnij się że planeta jest skolonizowana
+        if not self.target.colonized:
+            self.target.colonized = True
+            self.target.colonization_state = "colonized"
+        
+        # Transfer garnizonu (units z invasion_force)
         self.target.military_manager.garrison = list(self.invasion_force)
-
+        
+        # Ustaw status
         self.status = "successful"
-
-        msg = f"[INVASION] {self.attacker.name} captured planet!"
-        print(msg)
+        
+        # Log
+        if old_owner:
+            msg = f"[INVASION] {self.attacker.name} captured planet from {old_owner.name}!"
+        else:
+            msg = f"[INVASION] {self.attacker.name} captured neutral planet!"
+        
+        logging.info(msg)
         self.combat_log.append(msg)
